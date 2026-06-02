@@ -37,10 +37,10 @@ The debug build directory contains an auto-generated makefile:
 
 ```bash
 cd Debug
-make
+make all
 ```
 
-The build links against zlib, pthread, WebP, and sharpyuv. The current debug makefile contains local WebP paths:
+The build links against zlib, zstd, pthread, WebP, and sharpyuv. The current debug makefile contains local WebP paths:
 
 ```make
 -I/home/user/yexiang/libwebp/include
@@ -98,8 +98,9 @@ The main output files and directories are:
 | `pre_window_id.txt` | Previous-window anchors used to decode window deltas |
 | `error.fastq` | Reads that could not be represented by the main path |
 | `store_2_zero_lossless/` | WebP quality-score output when using lossy quality mode |
+| `compressed.xzip` | Unified XZIP archive containing the compressed output files |
 
-After compression, several directories/files may also be packaged as `.tar.zst`.
+After compression, XZIP also writes `compressed.xzip`, a single archive file. The archive stores each internal file with a small XZIP header and zstd-compressed payloads through the `libzstd` API, rather than shelling out to the `zstd` command.
 
 ## Decompression
 
@@ -117,7 +118,7 @@ Example for lossless quality-score mode:
   /path/to/reference.fa
 ```
 
-The decompression options `read_length`, `paired_end`, and `webp_lossless` must match the compression run.
+The decompression options `read_length`, `paired_end`, and `webp_lossless` must match the compression run. If the working directories are missing but `compressed.xzip` is present in the same work directory, decompression restores the needed files from the archive first.
 
 Decompression reads `pre_window_id.txt`, restores the reference windows from the FASTA, decodes each `store.<id>.bin`, applies `diff_seq` and `diff_base`, restores quality strings, read names, and reverse flags, and writes:
 
@@ -156,4 +157,3 @@ The mismatch bitmap is stored separately because it has fixed length and packs e
 - In lossless quality mode, quality scores are packaged with zstd. In lossy mode, quality scores are represented through WebP-based image encoding.
 - `idx_dir` remains part of the command-line interface, but the current reference-difference path primarily relies on BAM coordinates and the FASTA sequence.
 - `Debug/` contains generated build outputs. Treat `src/` as the primary source tree for development.
-

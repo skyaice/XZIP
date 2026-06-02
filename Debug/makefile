@@ -8,6 +8,12 @@ RM := rm -rf
 
 CXXFLAGS += -std=c++17
 
+ZSTD_CFLAGS ?= $(shell pkg-config --cflags libzstd 2>/dev/null)
+ZSTD_LIBS ?= $(shell pkg-config --libs libzstd 2>/dev/null)
+ifeq ($(strip $(ZSTD_LIBS)),)
+ZSTD_LIBS := -lzstd
+endif
+
 WEBP_CONVERTER_SRC := ../webp_converter.cpp
 COMPRESS_40_QUALITY_SCORE_SRC := ../compress_40_quality_score.cpp
 
@@ -74,7 +80,7 @@ main-build: DNA_online_off
 DNA_online_off: $(OBJS) $(USER_OBJS) makefile $(OPTIONAL_TOOL_DEPS) 
 	@echo 'Building target: $@'
 	@echo 'Invoking: Cross G++ Linker'
-	g++ -o "DNA_online_off_gz_yx" $(OBJS) $(USER_OBJS) $(LIBS) -I/home/user/yexiang/libwebp/include -L/home/user/yexiang/libwebp/lib -lm -lpthread -lz -lwebp -lsharpyuv
+	g++ -o "DNA_online_off_gz_yx" $(OBJS) $(USER_OBJS) $(LIBS) -I/home/user/yexiang/libwebp/include -L/home/user/yexiang/libwebp/lib -lm -lpthread -lz $(ZSTD_LIBS) -lwebp -lsharpyuv
 	@echo 'Finished building target: $@'
 	@echo ' '
 

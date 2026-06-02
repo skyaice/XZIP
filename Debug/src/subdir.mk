@@ -40,6 +40,7 @@ src/%.o: ../src/%.cpp src/subdir.mk
 	g++ -I../src/htslib \
         -I../src/htslib/cram \
         -I/home/user/yexiang/libwebp/include \
+        $(ZSTD_CFLAGS) \
         -I../ \
         -O0 -Wall -g -c -fmessage-length=0 -MMD -MP \
         -MF"$(@:%.o=%.d)" -MT"$@" -o "$@" "$<"
