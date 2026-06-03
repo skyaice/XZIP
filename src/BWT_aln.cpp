@@ -3007,8 +3007,7 @@ void parallel_sort_and_write(
         }
 
         threads.emplace_back([=]() {
-            char file_name[100];
-            snprintf(file_name, sizeof(file_name), "%s/tmp/test.%d.bin", work_dir.c_str(), i);
+            const std::string file_name = work_dir + "/tmp/test." + std::to_string(i) + ".bin";
 
             std::vector<Compress_block> blocks = read_compress_blocks(file_name);
             if (blocks.empty()) {
@@ -3070,14 +3069,13 @@ void process_partition(
     std::vector<uint32_t>& last_window_id,  // 改名，去掉 hap_id_list
     std::mutex& mtx
 ) {
-    char file_name[100];
-    snprintf(file_name, sizeof(file_name), "%s/tmp/test.%d.bin", work_dir.c_str(), partition_idx);
+    const std::string file_name = work_dir + "/tmp/test." + std::to_string(partition_idx) + ".bin";
     std::vector<Compress_block> blocks = read_compress_blocks(file_name);
     if (blocks.empty()) return;
     std::sort(blocks.begin(), blocks.end(), compare_blocks);
     last_window_id[partition_idx] = blocks.back().window_id;
     write_compress_blocks(file_name, blocks);
-    fprintf(stderr, "Thread %d: Written sorted blocks to %s\n", partition_idx, file_name);
+    fprintf(stderr, "Thread %d: Written sorted blocks to %s\n", partition_idx, file_name.c_str());
 }
 
 FastaData read_fasta(const std::string& fasta_path, int start_chr = -1, int end_chr = -1) {
@@ -3299,13 +3297,11 @@ void BWT_CLASSIFY_MAIN::init_run(int argc, char *argv[]){
     std::string work_dir = share->o->work_dir;
     int window_file_partition = chr_bg_wb_ID[genome.size()] / 10000 + 1;  // 分区数量
     share->blockFiles.clear();  // 确保文件句柄列表为空
-    char file_name[100];
     for (int i = 0; i <= window_file_partition; ++i) {
-        memset(file_name, 0, sizeof(file_name));
-        snprintf(file_name, sizeof(file_name), "%s/tmp/test.%d.bin", work_dir.c_str(), i);
-        FILE *fp = fopen(file_name, "wb");  // 二进制写入模式
+        const std::string file_name = work_dir + "/tmp/test." + std::to_string(i) + ".bin";
+        FILE *fp = fopen(file_name.c_str(), "wb");  // 二进制写入模式
         if (!fp) {
-            fprintf(stderr, "Failed to create partition file: %s\n", file_name);
+            fprintf(stderr, "Failed to create partition file: %s\n", file_name.c_str());
             exit(EXIT_FAILURE);
         }
         share->blockFiles.emplace_back(fp);
