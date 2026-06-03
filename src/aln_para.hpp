@@ -52,6 +52,7 @@
 	 int webp_height;
 	 int zstd_level;
 	 int paired_end;
+	 int discard_qname;
  
 	 char * idx_dir;
 	 char * read_bam;
@@ -109,6 +110,7 @@
 		 l.add_title_string("    -y / --webp_height      WebP tile height, 1-16383. Default: 4096\n");
 		 l.add_title_string("    -Z / --zstd_level       zstd compression level, 1-19. Default: 19\n");
 		 l.add_title_string("    --paired_end            1=paired-end BAM, 0=single-end BAM. Default: 1\n");
+		 l.add_title_string("    -N / --discard_qname    1=omit read-name stream and regenerate deterministic identifiers. Default: 0\n");
 		 l.add_title_string("\n");
 	 
 		 /*
@@ -129,6 +131,11 @@
  
 		 l.add_option("paired_end", 'e', "[0/1] Input BAM layout: 1=paired-end, 0=single-end", true, 1);
 		 l.set_arg_pointer_back((void *)&paired_end);
+
+		 l.add_option("discard_qname", 'N', "[0/1] 1=omit qname stream and regenerate deterministic FASTQ identifiers", true, 0);
+		 l.add_alias_back("discard-qname");
+		 l.add_alias_back("regenerate_qname");
+		 l.set_arg_pointer_back((void *)&discard_qname);
  
 		 const char *opt_idx_dir = NULL;
 		 const char *opt_read_bam = NULL;
@@ -261,6 +268,9 @@
  
 		 xassert((paired_end == 0 || paired_end == 1),
 				 "Input error: paired_end must be 0 or 1\n");
+
+		 xassert((discard_qname == 0 || discard_qname == 1),
+				 "Input error: discard_qname must be 0 or 1\n");
 	 
 		 if (min_base_qual == 0) {
 			 min_base_qual = 15;
@@ -390,6 +400,8 @@
 		 fprintf(stderr, "[Input] paired_end=%d (%s)\n",
 				 paired_end,
 				 paired_end ? "paired-end" : "single-end");
+		 fprintf(stderr, "[QNAME] mode=%s\n",
+				 discard_qname ? "discard-and-regenerate" : "preserve-original");
 	 
 		 return 0;
 	 }
@@ -411,6 +423,10 @@
 		 l.set_arg_pointer_back((void *)&read_length);
 		 l.add_option("paired_end", 'e', "[0/1] Input layout used during compression: 1=paired-end, 0=single-end", true, 1);
 		 l.set_arg_pointer_back((void *)&paired_end);
+		 l.add_option("discard_qname", 'N', "[0/1] qname mode used during compression: 1=regenerate deterministic identifiers, 0=read qnames stream", true, 0);
+		 l.add_alias_back("discard-qname");
+		 l.add_alias_back("regenerate_qname");
+		 l.set_arg_pointer_back((void *)&discard_qname);
 		 webp_lossless = 1;
 		 l.add_option("webp_lossless", 'W', "[0/1] Quality mode used during compression: 1=zstd lossless, 0=WebP lossy", true, 1);
 		 l.add_alias_back("quality_lossless");
@@ -465,6 +481,7 @@
  
 		 xassert((thread_n >= 0) && (thread_n <= 256), "Input error: thread_n cannot be less than 1 or more than 256\n");
 		 xassert((paired_end == 0 || paired_end == 1), "Input error: paired_end must be 0 or 1\n");
+		 xassert((discard_qname == 0 || discard_qname == 1), "Input error: discard_qname must be 0 or 1\n");
 		 xassert((webp_lossless == 0 || webp_lossless == 1), "Input error: webp_lossless must be 0 or 1\n");
  
  
@@ -478,6 +495,8 @@
 		 fprintf(stderr,
 				 "[Quality] mode=%s\n",
 				 webp_lossless ? "zstd-lossless" : "webp-lossy");
+		 fprintf(stderr, "[QNAME] mode=%s\n",
+				 discard_qname ? "discard-and-regenerate" : "preserve-original");
 		 return 0;
 	 }
  };

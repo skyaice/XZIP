@@ -100,8 +100,9 @@ static std::mutex g_perf_print_mutex;
  #define N_NEEDED N_NEEDED_B+100
  #define WINDOW_ID_MAX 50000000
  #define MAX_MEM_BUFFER_SIZE 1000000
- uint64_t read_sum = 0;
- int cnt_14;
+uint64_t read_sum = 0;
+std::atomic<uint64_t> g_error_qname_counter{0};
+int cnt_14;
  int g_global_read_length = 0;
  std::vector<int>chr_bg_wb_ID;
  std::vector<Window_t> g_window_info(WINDOW_ID_MAX);
@@ -1289,7 +1290,12 @@ void sort_and_write_file(
     store_the_quality_score(quality_score_blocks, id, quality_score_dir);
     count_ACGT(bio_string_blocks, id, pos_dir);
     store_the_flag(flag_blocks, pos_dir, id);
-    store_the_name(qname_blocks, pos_dir, id);
+    if (g_global_o && g_global_o->discard_qname) {
+        std::cout << "[QNAME] discard_qname=1, skip qname stream for partition "
+                  << id << std::endl;
+    } else {
+        store_the_name(qname_blocks, pos_dir, id);
+    }
     store_the_diff_seq(diff_seq_blocks, pos_dir, id);
     diff_seq_build(diff_base_blocks, pos_dir, id);
     fprintf(stderr, " file size  %llu \n", (unsigned long long)blocks.size());
@@ -2395,9 +2401,16 @@ void write_error_reads_to_fq(const std::string& qname1, const std::string& seq1,
     if (tl_error_fq_buffer.capacity() == 0) {
         tl_error_fq_buffer.reserve(ERROR_FQ_FLUSH_THRESHOLD + 1024);
     }
+    std::string out_qname1 = qname1;
+    std::string out_qname2 = qname2;
+    if (g_global_o && g_global_o->discard_qname) {
+        uint64_t id = g_error_qname_counter.fetch_add(1);
+        out_qname1 = "XZIP_ERROR_" + std::to_string(id);
+        out_qname2 = out_qname1;
+    }
 
     tl_error_fq_buffer += "@";
-    tl_error_fq_buffer += qname1;
+    tl_error_fq_buffer += out_qname1;
     tl_error_fq_buffer += " 1:N:0:\n";
     tl_error_fq_buffer += seq1;
     tl_error_fq_buffer += "\n+\n";
@@ -2405,7 +2418,7 @@ void write_error_reads_to_fq(const std::string& qname1, const std::string& seq1,
     tl_error_fq_buffer += "\n";
 
     tl_error_fq_buffer += "@";
-    tl_error_fq_buffer += qname2;
+    tl_error_fq_buffer += out_qname2;
     tl_error_fq_buffer += " 2:N:0:\n";
     tl_error_fq_buffer += seq2;
     tl_error_fq_buffer += "\n+\n";
@@ -2530,9 +2543,14 @@ void write_error_read_to_fq(const std::string& qname,
     if (tl_error_fq_buffer.capacity() == 0) {
         tl_error_fq_buffer.reserve(ERROR_FQ_FLUSH_THRESHOLD + 1024);
     }
+    std::string out_qname = qname;
+    if (g_global_o && g_global_o->discard_qname) {
+        uint64_t id = g_error_qname_counter.fetch_add(1);
+        out_qname = "XZIP_ERROR_" + std::to_string(id);
+    }
 
     tl_error_fq_buffer += "@";
-    tl_error_fq_buffer += qname;
+    tl_error_fq_buffer += out_qname;
     tl_error_fq_buffer += read_no == 2 ? " 2:N:0:\n" : " 1:N:0:\n";
     tl_error_fq_buffer += seq;
     tl_error_fq_buffer += "\n+\n";
@@ -3448,10 +3466,12 @@ void BWT_CLASSIFY_MAIN::init_run(int argc, char *argv[]){
         "diff_seq",
         "diff_base",
         "byte_flags",
-        "qnames",
         "pre_window_id.txt",
         "error.fastq"
     };
+    if (!share->o->discard_qname) {
+        archive_paths.push_back("qnames");
+    }
     if (share->o->webp_lossless) {
         archive_paths.push_back("quality_score");
     } else {
@@ -3690,6 +3710,15 @@ std::vector<std::string> read_qnames(const std::string& base_dir, int id) {
         if (iss >> index >> qname) {
             qnames.push_back(qname);
         }
+    }
+    return qnames;
+}
+
+std::vector<std::string> generate_deterministic_qnames(int id, size_t count) {
+    std::vector<std::string> qnames;
+    qnames.reserve(count);
+    for (size_t i = 0; i < count; ++i) {
+        qnames.push_back("XZIP_" + std::to_string(id) + "_" + std::to_string(i));
     }
     return qnames;
 }
@@ -4167,7 +4196,9 @@ void go_to_decompress_pos(std::vector<uint32_t> pre_window_id_vector,
             }
 
             auto quality_pairs = read_quality_scores(parent_dir, task.file_idx, blocks, task.share->o->webp_lossless != 0);
-            auto qnames        = read_qnames(parent_dir, task.file_idx);
+            auto qnames = task.share->o->discard_qname
+                        ? generate_deterministic_qnames(task.file_idx, reverse_pairs.size())
+                        : read_qnames(parent_dir, task.file_idx);
             auto flag_pairs    = read_flags(parent_dir, task.file_idx);
             bool task_has_paired_reads = false;
             for (const auto& block : blocks) {

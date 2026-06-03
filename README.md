@@ -91,6 +91,7 @@ Important options:
 | `-x`, `--webp_width` | WebP tile width, rounded to a multiple of read length | `4096` |
 | `-y`, `--webp_height` | WebP tile height | `4096` |
 | `-Z`, `--zstd_level` | zstd compression level | `19` |
+| `-N`, `--discard_qname` | `1` omits the original read-name stream and regenerates deterministic FASTQ identifiers during decompression; `0` preserves original read names | `0` |
 
 The compression run creates subdirectories under `<work_dir>` automatically.
 
@@ -106,7 +107,7 @@ The main output files and directories are:
 | `diff_base/diff_<id>.bin` | Huffman-coded mismatch bases |
 | `quality_score/quality_score.<id>.bin` | Raw quality blocks before optional zstd/WebP handling |
 | `byte_flags/flags_<id>.bin` | Packed reverse-complement flag bits |
-| `qnames/qnames_<id>.txt` | Read names |
+| `qnames/qnames_<id>.txt` | Read names; omitted when `--discard_qname 1` |
 | `pre_window_id.txt` | Previous-window anchors used to decode window deltas |
 | `error.fastq` | Reads that could not be represented by the main path |
 | `store_2_zero_lossless/` | WebP quality-score output when using lossy quality mode |
@@ -130,7 +131,7 @@ Example for lossless quality-score mode:
   /path/to/reference.fa
 ```
 
-The decompression options `read_length`, `paired_end`, and `webp_lossless` must match the compression run. If the working directories are missing but `compressed.xzip` is present in the same work directory, decompression restores the needed files from the archive first.
+The decompression options `read_length`, `paired_end`, `webp_lossless`, and `discard_qname` must match the compression run. If the working directories are missing but `compressed.xzip` is present in the same work directory, decompression restores the needed files from the archive first.
 
 Decompression reads `pre_window_id.txt`, restores the reference windows from the FASTA, decodes each `store.<id>.bin`, applies `diff_seq` and `diff_base`, restores quality strings, read names, and reverse flags, and writes:
 
@@ -142,6 +143,8 @@ work_dir/merged_all_R2.fastq
 ```
 
 For single-end mode, only the R1 output is produced. Records from `error.fastq` are appended to the merged FASTQ output.
+
+When `--discard_qname 1` is used for both compression and decompression, XZIP does not store the `qnames/` stream. Decompression emits deterministic identifiers such as `XZIP_<partition>_<record>` while preserving read sequences, quality strings, pairing order, and reverse-complement reconstruction.
 
 ## Data Model
 
@@ -167,5 +170,6 @@ The mismatch bitmap is stored separately because it has fixed length and packs e
 - The reference FASTA used for decompression must be the same as the one used for compression.
 - `read_length` must match the actual read length expected by the run.
 - In lossless quality mode, quality scores are packaged with zstd. In lossy mode, quality scores are represented through WebP-based image encoding.
+- Original read identifiers are preserved by default. For core read-content compression experiments, `--discard_qname 1` makes read identifiers optional metadata rather than part of the measured compressed representation.
 - `idx_dir` remains part of the command-line interface, but the current reference-difference path primarily relies on BAM coordinates and the FASTA sequence.
 - `src/` is the primary source tree for development. `Debug/` is only a compatibility build entry.
