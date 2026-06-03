@@ -488,16 +488,9 @@ void DECOMPRESS_MAIN::run(int argc, char* argv[])
 	 share->header = header;
  
 	 char *work_dir = share->o->work_dir;
- 
-	 char out_file_name[100];
-	 snprintf(out_file_name, sizeof(out_file_name), "%s", work_dir);
- 
-	 // 剩余空间的大小
-	 size_t remaining_size = sizeof(out_file_name) - strlen(out_file_name) - 1;
- 
-	 // 将 "fq.bin" 拼接到 out_file_name 中
-	 snprintf(out_file_name + strlen(out_file_name), remaining_size, "/fq.bin");
-	 share->sam_out_fp = fopen(out_file_name, "w");
+
+	 std::string out_file_name = std::string(work_dir) + "/fq.bin";
+	 share->sam_out_fp = fopen(out_file_name.c_str(), "w");
 	 fprintf(stderr, "BEGIN LOADING INDEX\n");
 	 share->idx = (Aln_online::IDX_loader *)xcalloc(1, sizeof(Aln_online::IDX_loader));
 	 fprintf(stderr, "Restore ALL INDEX\n");
