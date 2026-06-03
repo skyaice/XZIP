@@ -1,3 +1,9 @@
 .DS_Store
 **/.DS_Store
-
+*.o
+*.d
+*.log
+*.swp
+*.swo
+Debug/output.txt
+Debug/test.sim.sam
