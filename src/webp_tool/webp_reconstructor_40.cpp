@@ -19,98 +19,38 @@
 #include <functional>
 #include <ctime>
 
-const std::unordered_map<char, std::string> kCharToBinary = {
-    {'!', "000000"}, // Phred 0
-    {'"', "000001"}, // Phred 1
-    {'#', "000010"}, // Phred 2
-    {'$', "000011"}, // Phred 3
-    {'%', "000100"}, // Phred 4
-    {'&', "000101"}, // Phred 5
-    {'\'',"000110"}, // Phred 6 (注意单引号转义)
-    {'(', "000111"}, // Phred 7
-    {')', "001000"}, // Phred 8
-    {'*', "001001"}, // Phred 9
-    {'+', "001010"}, // Phred 10
-    {',', "001011"}, // Phred 11
-    {'-', "001100"}, // Phred 12
-    {'.', "001101"}, // Phred 13
-    {'/', "001110"}, // Phred 14
-    {'0', "001111"}, // Phred 15
-    {'1', "010000"}, // Phred 16
-    {'2', "010001"}, // Phred 17
-    {'3', "010010"}, // Phred 18
-    {'4', "010011"}, // Phred 19
-    {'5', "010100"}, // Phred 20
-    {'6', "010101"}, // Phred 21
-    {'7', "010110"}, // Phred 22
-    {'8', "010111"}, // Phred 23
-    {'9', "011000"}, // Phred 24
-    {':', "011001"}, // Phred 25
-    {';', "011010"}, // Phred 26
-    {'<', "011011"}, // Phred 27
-    {'=', "011100"}, // Phred 28
-    {'>', "011101"}, // Phred 29
-    {'?', "011110"}, // Phred 30
-    {'@', "011111"}, // Phred 31
-    {'A', "100000"}, // Phred 32
-    {'B', "100001"}, // Phred 33
-    {'C', "100010"}, // Phred 34
-    {'D', "100011"}, // Phred 35
-    {'E', "100100"}, // Phred 36
-    {'F', "100101"}, // Phred 37
-    {'G', "100110"}, // Phred 38
-    {'H', "100111"}  // Phred 39
+const std::unordered_map<char, std::string> kCharToBinary_40 = {
+    {'!', "000000"}, {'\"', "000001"}, {'#', "000010"}, {'$', "000011"},
+    {'%', "000100"}, {'&', "000101"}, {'\'', "000110"}, {'(', "000111"},
+    {')', "001000"}, {'*', "001001"}, {'+', "001010"}, {',', "001011"},
+    {'-', "001100"}, {'.', "001101"}, {'/', "001110"}, {'0', "001111"},
+    {'1', "010000"}, {'2', "010001"}, {'3', "010010"}, {'4', "010011"},
+    {'5', "010100"}, {'6', "010101"}, {'7', "010110"}, {'8', "010111"},
+    {'9', "011000"}, {':', "011001"}, {';', "011010"}, {'<', "011011"},
+    {'=', "011100"}, {'>', "011101"}, {'?', "011110"}, {'@', "011111"},
+    {'A', "100000"}, {'B', "100001"}, {'C', "100010"}, {'D', "100011"},
+    {'E', "100100"}, {'F', "100101"}, {'G', "100110"}, {'H', "100111"}
 };
 
-const std::unordered_map<std::string, char> kBinaryToChar = {
-    {"000000", '!'}, // 对应 Phred 0（反转 kCharToBinary['!']）
-    {"000001", '"'}, // 对应 Phred 1（反转 kCharToBinary['"']）
-    {"000010", '#'}, // 对应 Phred 2（反转 kCharToBinary['#']）
-    {"000011", '$'}, // 对应 Phred 3（反转 kCharToBinary['$']）
-    {"000100", '%'}, // 对应 Phred 4（反转 kCharToBinary['%']）
-    {"000101", '&'}, // 对应 Phred 5（反转 kCharToBinary['&']）
-    {"000110", '\''},// 对应 Phred 6（反转 kCharToBinary['\'']，注意单引号转义）
-    {"000111", '('}, // 对应 Phred 7（反转 kCharToBinary['(']）
-    {"001000", ')'}, // 对应 Phred 8（反转 kCharToBinary[')']）
-    {"001001", '*'}, // 对应 Phred 9（反转 kCharToBinary['*']）
-    {"001010", '+'}, // 对应 Phred 10（反转 kCharToBinary['+']）
-    {"001011", ','}, // 对应 Phred 11（反转 kCharToBinary[',']）
-    {"001100", '-'}, // 对应 Phred 12（反转 kCharToBinary['-']）
-    {"001101", '.'}, // 对应 Phred 13（反转 kCharToBinary['.']）
-    {"001110", '/'}, // 对应 Phred 14（反转 kCharToBinary['/']）
-    {"001111", '0'}, // 对应 Phred 15（反转 kCharToBinary['0']）
-    {"010000", '1'}, // 对应 Phred 16（反转 kCharToBinary['1']）
-    {"010001", '2'}, // 对应 Phred 17（反转 kCharToBinary['2']）
-    {"010010", '3'}, // 对应 Phred 18（反转 kCharToBinary['3']）
-    {"010011", '4'}, // 对应 Phred 19（反转 kCharToBinary['4']）
-    {"010100", '5'}, // 对应 Phred 20（反转 kCharToBinary['5']）
-    {"010101", '6'}, // 对应 Phred 21（反转 kCharToBinary['6']）
-    {"010110", '7'}, // 对应 Phred 22（反转 kCharToBinary['7']）
-    {"010111", '8'}, // 对应 Phred 23（反转 kCharToBinary['8']）
-    {"011000", '9'}, // 对应 Phred 24（反转 kCharToBinary['9']）
-    {"011001", ':'}, // 对应 Phred 25（反转 kCharToBinary[':']）
-    {"011010", ';'}, // 对应 Phred 26（反转 kCharToBinary[';']）
-    {"011011", '<'}, // 对应 Phred 27（反转 kCharToBinary['<']）
-    {"011100", '='}, // 对应 Phred 28（反转 kCharToBinary['=']）
-    {"011101", '>'}, // 对应 Phred 29（反转 kCharToBinary['>']）
-    {"011110", '?'}, // 对应 Phred 30（反转 kCharToBinary['?']）
-    {"011111", '@'}, // 对应 Phred 31（反转 kCharToBinary['@']）
-    {"100000", 'A'}, // 对应 Phred 32（反转 kCharToBinary['A']）
-    {"100001", 'B'}, // 对应 Phred 33（反转 kCharToBinary['B']）
-    {"100010", 'C'}, // 对应 Phred 34（反转 kCharToBinary['C']）
-    {"100011", 'D'}, // 对应 Phred 35（反转 kCharToBinary['D']）
-    {"100100", 'E'}, // 对应 Phred 36（反转 kCharToBinary['E']）
-    {"100101", 'F'}, // 对应 Phred 37（反转 kCharToBinary['F']）
-    {"100110", 'G'}, // 对应 Phred 38（反转 kCharToBinary['G']）
-    {"100111", 'H'}  // 对应 Phred 39（反转 kCharToBinary['H']）
+const std::unordered_map<std::string, char> kBinaryToChar_40 = {
+    {"000000", '!'}, {"000001", '\"'}, {"000010", '#'}, {"000011", '$'},
+    {"000100", '%'}, {"000101", '&'}, {"000110", '\''}, {"000111", '('},
+    {"001000", ')'}, {"001001", '*'}, {"001010", '+'}, {"001011", ','},
+    {"001100", '-'}, {"001101", '.'}, {"001110", '/'}, {"001111", '0'},
+    {"010000", '1'}, {"010001", '2'}, {"010010", '3'}, {"010011", '4'},
+    {"010100", '5'}, {"010101", '6'}, {"010110", '7'}, {"010111", '8'},
+    {"011000", '9'}, {"011001", ':'}, {"011010", ';'}, {"011011", '<'},
+    {"011100", '='}, {"011101", '>'}, {"011110", '?'}, {"011111", '@'},
+    {"100000", 'A'}, {"100001", 'B'}, {"100010", 'C'}, {"100011", 'D'},
+    {"100100", 'E'}, {"100101", 'F'}, {"100110", 'G'}, {"100111", 'H'}
 };
 
 // 进度跟踪器结构体
-struct ProgressTracker {
-    std::atomic<int> processed{0};   // 已处理文件数
-    std::atomic<int> total{0};       // 总文件数
-    std::atomic<int> success{0};     // 成功处理的ID数
-    std::atomic<int> errors{0};      // 失败的ID数
+struct ProgressTracker_40 {
+    std::atomic<int> processed{0};
+    std::atomic<int> total{0};
+    std::atomic<int> success{0};
+    std::atomic<int> errors{0};
     std::chrono::time_point<std::chrono::steady_clock> start_time;
 };
 
@@ -120,9 +60,7 @@ void CreateDirectoryRecursive_40(const char* path) {
     char* p = NULL;
     snprintf(tmp, sizeof(tmp), "%s", path);
     size_t len = strlen(tmp);
-    if (tmp[len - 1] == '/') {
-        tmp[len - 1] = 0;
-    }
+    if (tmp[len - 1] == '/') tmp[len - 1] = 0;
     for (p = tmp + 1; *p; p++) {
         if (*p == '/') {
             *p = 0;
@@ -136,9 +74,7 @@ void CreateDirectoryRecursive_40(const char* path) {
 // 获取目录下的webp文件列表
 void GetWebpFiles_40(const std::string& dir_path, std::vector<std::string>& files) {
     DIR* dir = opendir(dir_path.c_str());
-    if (!dir) {
-        throw std::runtime_error("无法打开目录: " + dir_path);
-    }
+    if (!dir) throw std::runtime_error("无法打开目录: " + dir_path);
     struct dirent* entry;
     while ((entry = readdir(dir)) != NULL) {
         if (entry->d_type == DT_REG) {
@@ -162,143 +98,218 @@ bool WebpFileComparator_40(const std::string& a, const std::string& b) {
     return num_a < num_b;
 }
 
-std::vector<std::vector<uint8_t>> RestoreMatrixFromWebp_40(const std::string& input_dir) {
+std::vector<std::vector<uint8_t>> RestoreMatrixFromWebp_40(const std::string& input_dir, int read_length) {
     std::vector<std::vector<uint8_t>> restored_matrix;
 
     // 检查目录是否存在
     struct stat info;
     if (stat(input_dir.c_str(), &info) != 0 || !(info.st_mode & S_IFDIR)) {
         std::cerr << "警告: 目录不存在，跳过处理: " << input_dir << std::endl;
-        return restored_matrix; // 返回空矩阵
+        return restored_matrix;
     }
 
     // 获取并排序文件列表
     std::vector<std::string> webp_files;
     try {
         GetWebpFiles_40(input_dir, webp_files);
+        if (webp_files.empty()) {
+            std::cerr << "警告: 目录中未找到WebP文件: " << input_dir << std::endl;
+            return restored_matrix;
+        }
         std::sort(webp_files.begin(), webp_files.end(), WebpFileComparator_40);
     } catch (const std::runtime_error& e) {
         std::cerr << "警告: " << e.what() << "，跳过目录: " << input_dir << std::endl;
-        return restored_matrix; // 返回空矩阵
+        return restored_matrix;
     }
 
-    // 处理每个文件
-    for (const auto& file_path : webp_files) {
-        std::ifstream file(file_path, std::ios::binary | std::ios::ate);
-        size_t size = file.tellg();
-        file.seekg(0, std::ios::beg);
-        std::vector<uint8_t> webp_data(size);
-        if (!file.read(reinterpret_cast<char*>(webp_data.data()), size)) {
-            throw std::runtime_error("读取文件失败: " + file_path);
-        }
+    // 严格对齐编码端的核心参数计算逻辑
+    const int pixels_per_sequence = read_length;
+    const int max_webp_dimension  = 4096;
+    const int sequences_per_row   = max_webp_dimension / pixels_per_sequence;
+    if (sequences_per_row == 0) {
+        throw std::runtime_error("read_length=" + std::to_string(read_length) +
+                                 " 超过WebP最大宽度限制(16383)");
+    }
+    const int BASE_IMAGE_WIDTH = sequences_per_row * pixels_per_sequence;
 
+    // 处理每个WebP文件（按块顺序）
+    for (const auto& file_path : webp_files) {
+        // 1. 读取WebP文件数据
+        std::ifstream file(file_path, std::ios::binary | std::ios::ate);
+        if (!file.is_open()) {
+            throw std::runtime_error("无法打开文件: " + file_path + " (" + strerror(errno) + ")");
+        }
+        size_t file_size = file.tellg();
+        if (file_size == 0) {
+            file.close();
+            throw std::runtime_error("文件为空: " + file_path);
+        }
+        file.seekg(0, std::ios::beg);
+        std::vector<uint8_t> webp_data(file_size);
+        if (!file.read(reinterpret_cast<char*>(webp_data.data()), file_size)) {
+            file.close();
+            throw std::runtime_error("读取文件失败: " + file_path + " (" + strerror(errno) + ")");
+        }
+        file.close();
+
+        // 2. 获取文件头信息（宽高）
         WebPDecoderConfig config;
         if (!WebPInitDecoderConfig(&config)) {
             throw std::runtime_error("WebP解码器初始化失败");
         }
-
-        if (WebPGetFeatures(webp_data.data(), webp_data.size(), &config.input) != VP8_STATUS_OK) {
-            throw std::runtime_error("解析WebP头信息失败: " + file_path);
-        }
-
-        config.output.colorspace = MODE_RGBA;
-        if (WebPDecode(webp_data.data(), webp_data.size(), &config) != VP8_STATUS_OK) {
+        VP8StatusCode status = WebPGetFeatures(webp_data.data(), webp_data.size(), &config.input);
+        if (status != VP8_STATUS_OK) {
             WebPFreeDecBuffer(&config.output);
-            throw std::runtime_error("解码失败: " + file_path);
+            throw std::runtime_error("解析WebP头信息失败: " + file_path +
+                                     " (错误码: " + std::to_string(status) + ")");
         }
 
-        const int width = config.input.width;
-        const int height = config.input.height;
-        const uint8_t* rgba = config.output.u.RGBA.rgba;
-        const int stride = config.output.u.RGBA.stride;
+        const int actual_width  = config.input.width;
+        const int actual_height = config.input.height;
 
-        // 提取数据到矩阵
-        for (int y = 0; y < height; ++y) {
-            for (int seq_x = 0; seq_x < 144; ++seq_x) {
-                std::vector<uint8_t> sequence(113);
-                const int x_start = seq_x * 113;
-                for (int px = 0; px < 113; ++px) {
-                    const int pixel_idx = y * stride + (x_start + px) * 4;
-                    sequence[px] = rgba[pixel_idx];
+        // 允许 BASE_IMAGE_WIDTH 或 BASE_IMAGE_WIDTH+1（兼容偶数对齐变体）
+        if (actual_width != BASE_IMAGE_WIDTH && actual_width != BASE_IMAGE_WIDTH + 1) {
+            WebPFreeDecBuffer(&config.output);
+            throw std::runtime_error(
+                "WebP文件宽度不匹配: " + file_path +
+                " 预期: " + std::to_string(BASE_IMAGE_WIDTH) +
+                " 或 " + std::to_string(BASE_IMAGE_WIDTH + 1) +
+                " 实际: " + std::to_string(actual_width));
+        }
+
+        // 3. RGB模式解码（无损ARGB编码，R通道值严格保留，alpha=255无预乘问题）
+        int decoded_width = 0, decoded_height = 0;
+        std::cout << "准备解码(RGB模式): " << file_path << "\n";
+        uint8_t* rgb_data = WebPDecodeRGB(webp_data.data(), webp_data.size(),
+                                          &decoded_width, &decoded_height);
+        if (rgb_data == nullptr) {
+            WebPFreeDecBuffer(&config.output);
+            throw std::runtime_error("RGB模式解码失败: " + file_path);
+        }
+        std::cout << "成功解码(RGB模式): " << decoded_width << "x" << decoded_height << "\n";
+
+        if (decoded_width != actual_width || decoded_height != actual_height) {
+            WebPFree(rgb_data);
+            WebPFreeDecBuffer(&config.output);
+            throw std::runtime_error(
+                "解码尺寸不匹配: " + file_path +
+                " 头信息: " + std::to_string(actual_width) + "x" + std::to_string(actual_height) +
+                " 解码结果: " + std::to_string(decoded_width) + "x" + std::to_string(decoded_height));
+        }
+
+        // 4. 提取矩阵数据
+        //    【关键修复】编码端对图像块最后一行未填满的位置初始化为0，
+        //    解码时需过滤这些全零填充序列。
+        //    有效质量分数字符ASCII范围为33('!')~72('H')，永远不会为0，过滤安全。
+        const int effective_width = std::min(actual_width, BASE_IMAGE_WIDTH);
+        const int stride_rgb      = decoded_width * 3;
+
+        size_t valid_seq_count = 0;
+
+        for (int y = 0; y < decoded_height; ++y) {
+            for (int seq_idx_in_row = 0; seq_idx_in_row < sequences_per_row; ++seq_idx_in_row) {
+
+                const int x_start = seq_idx_in_row * pixels_per_sequence;
+                std::vector<uint8_t> sequence(pixels_per_sequence, 0);
+                bool seq_valid = true;
+
+                for (int px = 0; px < pixels_per_sequence; ++px) {
+                    const int x = x_start + px;
+                    if (x >= effective_width) {
+                        // 超出有效宽度，对应编码端未使用的填充列
+                        sequence[px] = 0;
+                        continue;
+                    }
+                    if (x >= decoded_width || y >= decoded_height) {
+                        seq_valid = false;
+                        break;
+                    }
+                    const int pixel_offset = y * stride_rgb + x * 3;
+                    const size_t total_rgb_size = static_cast<size_t>(stride_rgb) * decoded_height;
+                    if (pixel_offset + 2 >= static_cast<int>(total_rgb_size)) {
+                        seq_valid = false;
+                        break;
+                    }
+                    // 取R通道（编码端R=G=B=ascii_val，取任意一个均等价）
+                    sequence[px] = rgb_data[pixel_offset];
                 }
-                restored_matrix.push_back(sequence);
+
+                if (seq_valid) {
+                    // 【核心修复】过滤编码端零填充序列：
+                    // 编码端对图像最后一行空余位置填充全0，
+                    // 而有效质量分数ASCII >= 33，不可能出现0，直接过滤首字节为0的序列。
+                    if (sequence[0] != 0) {
+                        restored_matrix.push_back(std::move(sequence));
+                        valid_seq_count++;
+                    }
+                }
             }
         }
+
+        // 5. 资源清理
+        WebPFree(rgb_data);
         WebPFreeDecBuffer(&config.output);
+
+        std::cout << "已处理WebP文件: " << file_path
+                  << " (尺寸: " << actual_width << "x" << actual_height
+                  << ", 还原有效序列数: " << valid_seq_count << ")" << std::endl;
     }
 
-    if (!restored_matrix.empty() && restored_matrix[0].size() != 113) {
-        throw std::runtime_error("还原矩阵列数错误");
+    // 6. 最终验证：补全不足长度的序列（理论上不应出现，作为保险）
+    if (!restored_matrix.empty()) {
+        for (auto& seq : restored_matrix) {
+            if (seq.size() != static_cast<size_t>(read_length)) {
+                seq.resize(read_length, 0);
+            }
+        }
+        if (restored_matrix[0].size() != static_cast<size_t>(read_length)) {
+            throw std::runtime_error(
+                "还原矩阵列数错误: 预期 " + std::to_string(read_length) +
+                " 实际 " + std::to_string(restored_matrix[0].size()));
+        }
     }
 
+    std::cout << "矩阵还原完成，总有效序列数: " << restored_matrix.size() << std::endl;
     return restored_matrix;
 }
 
-std::string BytesToQualityString_40(const std::vector<uint8_t>& bytes) {
-    if (bytes.size() != 113) {
-        throw std::invalid_argument("字节向量长度必须为113");
-    }
+bool CompareMatrices_40(const std::vector<std::vector<uint8_t>>& original,
+                        const std::vector<std::vector<uint8_t>>& restored) {
+    if (!restored.size()) return true;
+    const size_t CHECK_LIMIT = original.size();
 
-    std::string binary_str;
-    binary_str.reserve(904);
-    for (uint8_t byte : bytes) {
-        for (int i = 7; i >= 0; --i) {
-            binary_str += (byte & (1 << i)) ? '1' : '0';
-        }
-    }
-    binary_str.resize(900); // 移除填充位
-
-    std::string quality_str;
-    for (size_t i = 0; i < 900; i += 6) {
-        std::string pair = binary_str.substr(i, 6);
-        auto it = kBinaryToChar.find(pair);
-        if (it == kBinaryToChar.end()) {
-            throw std::runtime_error("无效的二进制对: " + pair);
-        }
-        quality_str += it->second;
-    }
-
-    return quality_str;
-}
-
-bool CompareMatrices_40(const std::vector<std::vector<uint8_t>>& original, const std::vector<std::vector<uint8_t>>& restored) {
-    if(!restored.size()) return true;
-    const size_t CHECK_LIMIT = original.size(); // 设置需要检查的行数阈值
-    
-    // 检查前CHECK_LIMIT行数据
     for (size_t i = 0; i < CHECK_LIMIT; ++i) {
-        // 边界检查
         if (i >= original.size() || i >= restored.size()) {
-            std::cerr << "矩阵行数不足" << CHECK_LIMIT << ": original=" << original.size() << " restored=" << restored.size() << std::endl;
+            std::cerr << "矩阵行数不足" << CHECK_LIMIT
+                      << ": original=" << original.size()
+                      << " restored=" << restored.size() << std::endl;
             return false;
         }
-        
-        // 列数一致性检查
         if (original[i].size() != restored[i].size()) {
-            std::cerr << "第 " << i << " 行列数不一致: " << original[i].size() << " vs " << restored[i].size() << std::endl;
+            std::cerr << "第 " << i << " 行列数不一致: "
+                      << original[i].size() << " vs " << restored[i].size() << std::endl;
             return false;
         }
-        
-        // 元素级比较
         for (size_t j = 0; j < original[i].size(); ++j) {
             if (original[i][j] != restored[i][j]) {
-                std::cerr << "差异位置 (" << i << "," << j << "): " << static_cast<int>(original[i][j]) << " vs " << static_cast<int>(restored[i][j]) << std::endl;
+                std::cerr << "差异位置 (" << i << "," << j << "): "
+                          << static_cast<int>(original[i][j])
+                          << " vs " << static_cast<int>(restored[i][j]) << std::endl;
                 return false;
             }
         }
     }
-    
-    // 如果原始数据超过检查阈值，输出提示信息
+
     if (original.size() > CHECK_LIMIT || restored.size() > CHECK_LIMIT) {
-        std::cout << "前" << CHECK_LIMIT << "行验证通过（总行数: original=" << original.size() << " restored=" << restored.size() << "）" << std::endl;
+        std::cout << "前" << CHECK_LIMIT << "行验证通过（总行数: original="
+                  << original.size() << " restored=" << restored.size() << "）" << std::endl;
     }
-    
     return true;
 }
 
 // 线程安全队列
 template <typename T>
-class ThreadSafeQueue {
+class ThreadSafeQueue_40 {
 public:
     void Push_40(T value) {
         std::lock_guard<std::mutex> lock(mutex_);
@@ -308,16 +319,8 @@ public:
 
     bool Pop_40(T& value) {
         std::unique_lock<std::mutex> lock(mutex_);
-        // 等待条件：队列非空 或 停止标志为真
-        cond_.wait(lock, [this]{ return !queue_.empty() || stop_; });
-        if (stop_ && queue_.empty()) { // 新增：队列空且停止，才返回false
-            return false;
-        }
-        if (stop_) { // 停止标志为真但队列非空，仍处理剩余任务
-            value = std::move(queue_.front());
-            queue_.pop();
-            return true;
-        }
+        cond_.wait(lock, [this] { return !queue_.empty() || stop_; });
+        if (stop_ && queue_.empty()) return false;
         value = std::move(queue_.front());
         queue_.pop();
         return true;
@@ -342,22 +345,21 @@ private:
 };
 
 // 处理单个ID的任务
-void ProcessOneID_40(int id, const std::string& webp_base_dir, 
-                  const std::string& output_base_dir,
-                  const std::string& matrix_base_dir,
-                  std::mutex& output_mutex,
-                  std::atomic<bool>& error_occurred,
-                  ProgressTracker& progress) {
+void ProcessOneID_40(int id, const std::string& webp_base_dir,
+                     const std::string& output_base_dir,
+                     std::mutex& output_mutex,
+                     std::atomic<bool>& error_occurred,
+                     ProgressTracker_40& progress,
+                     int read_length) {
     try {
-        // 防止在已出错时继续处理
         if (error_occurred.load()) return;
 
-        // 恢复矩阵
         std::string webp_dir = webp_base_dir + "combined_output." + std::to_string(id);
-        auto restored_matrix = RestoreMatrixFromWebp_40(webp_dir);
+        std::cout << "正在准备还原Webp\n";
+        auto quality_blocks = RestoreMatrixFromWebp_40(webp_dir, read_length);
+        std::cout << "已经还原Webp\n";
 
-        // 如果矩阵为空（目录不存在），跳过该ID的处理
-        if (restored_matrix.empty()) {
+        if (quality_blocks.empty()) {
             progress.errors++;
             progress.processed++;
             std::lock_guard<std::mutex> lock(output_mutex);
@@ -365,104 +367,63 @@ void ProcessOneID_40(int id, const std::string& webp_base_dir,
             return;
         }
 
-        // 转换质量块
-        std::vector<std::string> quality_blocks;
-        for (const auto& row : restored_matrix) {
-            quality_blocks.push_back(BytesToQualityString_40(row));
-        }
-
-        // 保存质量文件
         std::string output_file = output_base_dir + "quality_score." + std::to_string(id) + ".bin";
         {
             std::ofstream out(output_file, std::ios::binary);
             size_t block_count = quality_blocks.size();
             out.write(reinterpret_cast<const char*>(&block_count), sizeof(size_t));
+            std::cout << output_file << " size: " << block_count << std::endl;
             for (const auto& block : quality_blocks) {
                 size_t len = block.size();
                 out.write(reinterpret_cast<const char*>(&len), sizeof(size_t));
-                out.write(block.data(), len);
+                out.write(reinterpret_cast<const char*>(block.data()), len);
             }
         }
-
-        // 验证矩阵
-        std::string matrix_file = matrix_base_dir + "matrix_" + std::to_string(id) + ".bin";
-        std::ifstream in(matrix_file, std::ios::binary);
-        uint32_t rows, cols;
-        in.read(reinterpret_cast<char*>(&rows), sizeof(uint32_t));
-        in.read(reinterpret_cast<char*>(&cols), sizeof(uint32_t));
-        std::vector<std::vector<uint8_t>> original_matrix(rows, std::vector<uint8_t>(cols));
-        for (auto& row : original_matrix) {
-            in.read(reinterpret_cast<char*>(row.data()), cols);
-        }
-
-        if (!CompareMatrices_40(original_matrix, restored_matrix)) {
-            throw std::runtime_error("矩阵验证失败");
-        }
-
-        // 更新成功计数
-        progress.success++;
-        
-        // 输出结果（加锁保证线程安全）
-        {
-            std::lock_guard<std::mutex> lock(output_mutex);
-            // 不再打印每个ID的成功信息，避免干扰进度条
-        }
-    }
-    catch (const std::exception& e) {
-        // 设置错误标志
+    } catch (const std::exception& e) {
         error_occurred = true;
-        
-        // 更新错误计数
         progress.errors++;
-        
-        // 错误输出（加锁保证线程安全）
         std::lock_guard<std::mutex> lock(output_mutex);
         std::cerr << "\n处理ID " << id << " 时出错: " << e.what() << std::endl;
     }
-    
-    // 更新已处理计数
     progress.processed++;
 }
 
 // 工作线程函数
-void WorkerThread_40(ThreadSafeQueue<int>& task_queue,
-                 const std::string& webp_base_dir,
-                 const std::string& output_base_dir,
-                 const std::string& matrix_base_dir,
-                 std::mutex& output_mutex,
-                 std::atomic<bool>& error_occurred,
-                 ProgressTracker& progress) {
+void WorkerThread_40(ThreadSafeQueue_40<int>& task_queue,
+                     const std::string& webp_base_dir,
+                     const std::string& output_base_dir,
+                     std::mutex& output_mutex,
+                     std::atomic<bool>& error_occurred,
+                     ProgressTracker_40& progress,
+                     int read_length) {
     int id;
     while (task_queue.Pop_40(id)) {
-        // 如果已发生错误，提前退出
         if (error_occurred.load()) {
-            task_queue.Stop_40();  // 停止其他线程
+            task_queue.Stop_40();
             break;
         }
-        ProcessOneID_40(id, webp_base_dir, output_base_dir, matrix_base_dir, output_mutex, error_occurred, progress);
+        ProcessOneID_40(id, webp_base_dir, output_base_dir,
+                        output_mutex, error_occurred, progress, read_length);
     }
 }
 
 // 更新进度显示
-void UpdateProgressDisplay_40(const ProgressTracker& progress) {
+void UpdateProgressDisplay_40(const ProgressTracker_40& progress) {
     auto now = std::chrono::steady_clock::now();
     auto elapsed_seconds = std::chrono::duration_cast<std::chrono::seconds>(now - progress.start_time);
-    auto elapsed_millis = std::chrono::duration_cast<std::chrono::milliseconds>(now - progress.start_time);
-    
+    auto elapsed_millis  = std::chrono::duration_cast<std::chrono::milliseconds>(now - progress.start_time);
+
     int processed = progress.processed.load();
-    int total = progress.total.load();
-    int success = progress.success.load();
-    int errors = progress.errors.load();
-    
+    int total     = progress.total.load();
+    int success   = progress.success.load();
+    int errors    = progress.errors.load();
+
     if (total <= 0) return;
-    
-    // 计算进度百分比
-    float percentage = 100.0f * processed / total;
-    
-    // 进度条显示
+
+    float percentage  = 100.0f * processed / total;
     const int bar_width = 50;
     int pos = static_cast<int>(bar_width * percentage / 100.0);
-    
+
     std::cout << "\r[";
     for (int i = 0; i < bar_width; ++i) {
         if (i < pos) std::cout << "=";
@@ -470,128 +431,99 @@ void UpdateProgressDisplay_40(const ProgressTracker& progress) {
         else std::cout << " ";
     }
     std::cout << "] ";
-    
-    // 数字统计
     std::cout << std::setw(5) << std::fixed << std::setprecision(1) << percentage << "% "
               << "处理: " << processed << "/" << total << " "
               << "成功: " << success << " "
               << "错误: " << errors << " "
               << "用时: " << elapsed_seconds.count() << "秒";
-    
-    // 计算剩余时间（如果可能）
+
     if (processed > 0 && processed < total) {
         auto remaining = std::chrono::duration_cast<std::chrono::seconds>(
             (now - progress.start_time) * (total - processed) / processed);
         std::cout << " 剩余: " << remaining.count() << "秒";
     }
-    
-    // 刷新输出
     std::cout << std::flush;
 }
 
-int webp_reconstructor_40_main(char *webp_dir, char* output_dir) {
+int webp_reconstructor_40_main(char* webp_dir, char* output_dir,
+                                int thread_n, int read_length, int total) {
     try {
-        const int START_ID = 0;
-        const int END_ID = 2059; // 对应2060个文件(0-2059)
-        const int NUM_THREADS = 36;
-        
-        // 确保目录路径正确格式
+        const int START_ID   = 0;
+        const int END_ID     = total;
+        const int NUM_THREADS = thread_n;
+
         std::string webp_base_dir = webp_dir;
-        if (!webp_base_dir.empty() && webp_base_dir.back() != '/') {
-            webp_base_dir += '/';
-        }
-        
+        if (!webp_base_dir.empty() && webp_base_dir.back() != '/') webp_base_dir += '/';
+
         std::string output_base_dir = output_dir;
-        if (!output_base_dir.empty() && output_base_dir.back() != '/') {
-            output_base_dir += '/';
-        }
-        
-        // 验证用路径（根据实际情况调整）
-        const std::string matrix_base_dir = "/home/user/yexiang/save_image_matrix/";
-        
-        // 创建输出目录
+        if (!output_base_dir.empty() && output_base_dir.back() != '/') output_base_dir += '/';
+
         CreateDirectoryRecursive_40(output_base_dir.c_str());
-        
-        // 初始化进度跟踪器
-        ProgressTracker progress;
-        progress.total = END_ID - START_ID + 1;
+
+        ProgressTracker_40 progress;
+        progress.total      = END_ID - START_ID + 1;
         progress.start_time = std::chrono::steady_clock::now();
-        
-        // 打印启动信息
-        std::time_t start_time_t = std::chrono::system_clock::to_time_t(
-            std::chrono::system_clock::now());
+
+        std::time_t start_time_t = std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
         std::cout << "使用 " << NUM_THREADS << " 个线程进行解压处理" << std::endl;
         std::cout << "处理ID范围: [" << START_ID << ", " << END_ID << "]" << std::endl;
         std::cout << "开始时间: " << std::ctime(&start_time_t);
         std::cout << "源目录: " << webp_base_dir << std::endl;
         std::cout << "输出目录: " << output_base_dir << std::endl;
 
-        // 创建任务队列
-        ThreadSafeQueue<int> task_queue;
-        for (int id = START_ID; id <= END_ID; ++id) {
-            task_queue.Push_40(id);
-        }
+        ThreadSafeQueue_40<int> task_queue;
+        for (int id = START_ID; id <= END_ID; ++id) task_queue.Push_40(id);
+        task_queue.Stop_40();
 
-        test_queue.Stop();
-
-        // 多线程处理控制
-        std::mutex output_mutex;
-        std::atomic<bool> error_occurred(false);
+        std::mutex          output_mutex;
+        std::atomic<bool>   error_occurred(false);
         std::vector<std::thread> threads;
-        
-        // 启动工作线程
+        std::cout << "work here\n";
+
         for (int i = 0; i < NUM_THREADS; ++i) {
             threads.emplace_back([&] {
-                WorkerThread_40(task_queue, webp_base_dir, output_base_dir, matrix_base_dir, 
-                            output_mutex, error_occurred, progress);
+                WorkerThread_40(task_queue, webp_base_dir, output_base_dir,
+                                output_mutex, error_occurred, progress, read_length);
             });
         }
 
-        // 主线程监控进度
-        while (!task_queue.Empty_40() && !error_occurred.load_40()) {
+        while (!task_queue.Empty_40() && !error_occurred.load()) {
             std::this_thread::sleep_for(std::chrono::milliseconds(200));
             std::lock_guard<std::mutex> lock(output_mutex);
             UpdateProgressDisplay_40(progress);
         }
-        
-        // 等待所有线程完成
-        for (auto& thread : threads) {
+
+        for (auto& thread : threads)
             if (thread.joinable()) thread.join();
-        }
-        
-        // 更新最终进度
+
         UpdateProgressDisplay_40(progress);
         std::cout << std::endl;
 
-        // 检查是否发生错误
-        if (error_occurred.load()) {
+        if (error_occurred.load())
             throw std::runtime_error("处理过程中出现错误");
-        }
 
-        // 打印最终报告
-        auto end_time = std::chrono::steady_clock::now();
+        auto end_time      = std::chrono::steady_clock::now();
         auto total_seconds = std::chrono::duration_cast<std::chrono::seconds>(end_time - progress.start_time);
-        auto total_millis = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - progress.start_time);
-        std::time_t end_time_t = std::chrono::system_clock::to_time_t(
-            std::chrono::system_clock::now());
-        
+        auto total_millis  = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - progress.start_time);
+        std::time_t end_time_t = std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
+
         std::cout << "\n==========================================" << std::endl;
-        std::cout << "        所有文件处理完成" << std::endl;
+        std::cout << "        所有文件处理完成"                      << std::endl;
         std::cout << "==========================================" << std::endl;
-        std::cout << "总任务数: " << progress.total << std::endl;
+        std::cout << "总任务数: " << progress.total   << std::endl;
         std::cout << "成功处理: " << progress.success << std::endl;
-        std::cout << "失败任务: " << progress.errors << std::endl;
+        std::cout << "失败任务: " << progress.errors  << std::endl;
         std::cout << "开始时间: " << std::ctime(&start_time_t);
         std::cout << "结束时间: " << std::ctime(&end_time_t);
-        std::cout << "总耗时  : " << total_seconds.count() << " 秒 (" 
+        std::cout << "总耗时  : " << total_seconds.count() << " 秒 ("
                   << total_millis.count() << " 毫秒)" << std::endl;
-        std::cout << "处理速度: " << std::fixed << std::setprecision(2) 
-                  << (progress.total * 1000.0 / total_millis.count()) << " 任务/秒" << std::endl;
+        std::cout << "处理速度: " << std::fixed << std::setprecision(2)
+                  << (progress.total * 1000.0 / total_millis.count())
+                  << " 任务/秒" << std::endl;
         std::cout << "==========================================" << std::endl;
-        
+
         return 0;
-    }
-    catch (const std::exception& e) {
+    } catch (const std::exception& e) {
         std::cerr << "\n程序错误: " << e.what() << std::endl;
         return 1;
     }

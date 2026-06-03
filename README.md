@@ -2,7 +2,7 @@
 
 XZIP is a reference-based compressor and decompressor for sequencing reads. The current implementation focuses on BAM input and reconstructs FASTQ output by storing each read as a compact combination of reference-window position, mismatch bitmap, mismatch bases, read name, orientation flag, and quality-score data.
 
-The core implementation is in `src/BWT_aln.cpp`. The `Debug/` directory is an Eclipse/CDT-style debug build directory and contains generated makefiles, object files, logs, and test artifacts.
+The core implementation is in `src/BWT_aln.cpp`. The canonical source tree is `src/`; `Debug/` is kept only as a compatibility wrapper for the historical `cd Debug && make all` workflow.
 
 ## Overview
 
@@ -33,21 +33,33 @@ Depending on your build target, the executable name may differ. In the checked-i
 
 ## Build
 
-The debug build directory contains an auto-generated makefile:
+The repository root contains the canonical makefile:
+
+```bash
+make all
+```
+
+This builds the executable:
+
+```text
+DNA_online_off_gz_yx
+```
+
+For compatibility with the original Eclipse/CDT-style workflow, the old command still works:
 
 ```bash
 cd Debug
 make all
 ```
 
-The build links against zlib, zstd, pthread, WebP, and sharpyuv. The current debug makefile contains local WebP paths:
+The build links against zlib, zstd, pthread, WebP, and sharpyuv. `libzstd` and WebP flags are discovered with `pkg-config` when available. If WebP is installed in a non-standard path, pass compiler and linker flags explicitly:
 
-```make
--I/home/user/yexiang/libwebp/include
--L/home/user/yexiang/libwebp/lib
+```bash
+make WEBP_CFLAGS="-I/path/to/libwebp/include" \
+     WEBP_LIBS="-L/path/to/libwebp/lib -lwebp -lsharpyuv"
 ```
 
-Adjust these paths if WebP is installed somewhere else.
+Generated object files are written under `build/` by the root makefile, or under `Debug/build/` when invoked from `Debug/`.
 
 ## Compression
 
@@ -156,4 +168,4 @@ The mismatch bitmap is stored separately because it has fixed length and packs e
 - `read_length` must match the actual read length expected by the run.
 - In lossless quality mode, quality scores are packaged with zstd. In lossy mode, quality scores are represented through WebP-based image encoding.
 - `idx_dir` remains part of the command-line interface, but the current reference-difference path primarily relies on BAM coordinates and the FASTA sequence.
-- `Debug/` contains generated build outputs. Treat `src/` as the primary source tree for development.
+- `src/` is the primary source tree for development. `Debug/` is only a compatibility build entry.

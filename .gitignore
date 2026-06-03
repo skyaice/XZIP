@@ -7,3 +7,6 @@
 *.swo
 Debug/output.txt
 Debug/test.sim.sam
+build/
+Debug/build/
+DNA_online_off_gz_yx

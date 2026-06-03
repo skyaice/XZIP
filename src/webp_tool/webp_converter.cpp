@@ -15,6 +15,8 @@
 #include <atomic>
 #include <filesystem>
 #include <sys/stat.h>
+#include <chrono>
+#include <exception>
 #include "../../../src/BWT_aln.hpp"
 
 namespace fs = std::filesystem;
@@ -27,6 +29,28 @@ const std::unordered_map<char, std::string> kCharToBinary = {
 };
 
 constexpr uint8_t kBitMask[8] = {128, 64, 32, 16, 8, 4, 2, 1};
+
+// 线程安全的目录创建（递归创建，兼容Linux）
+bool create_directory_safe(const std::string& dir) {
+    try {
+        // 如果目录已存在，直接返回true（无需创建）
+        if (fs::exists(dir)) {
+            if (fs::is_directory(dir)) {
+                return true;
+            } else {
+                // 路径存在但不是目录（是文件），抛异常
+                throw std::runtime_error("Path exists but is not a directory: " + dir);
+            }
+        }
+        // 目录不存在则创建（递归创建多级目录）
+        return fs::create_directories(dir);
+    } catch (const fs::filesystem_error& e) {
+        // 捕获文件系统错误，补充上下文后重新抛出
+        std::string err_msg = "Failed to create directory [" + dir + "]: " + e.what();
+        std::cerr << "[Error] " << err_msg << std::endl;
+        throw std::runtime_error(err_msg);
+    }
+}
 
 std::string ConvertToBinaryString(const std::string& quality_str, int read_length) {
     std::string binary;
@@ -73,53 +97,52 @@ std::vector<uint8_t> BinaryToBytes(const std::string& binary, int read_length) {
     return bytes;
 }
 
-
 class ThreadPool {
-    public:
-        ThreadPool(size_t threads) : stop(false) {
-            for(size_t i = 0; i < threads; ++i)
-                workers.emplace_back([this] {
-                    for(;;) {
-                        std::function<void()> task;
-                        {
-                            std::unique_lock<std::mutex> lock(this->queue_mutex);
-                            this->condition.wait(lock,
-                                [this]{ return this->stop || !this->tasks.empty(); });
-                            if(this->stop && this->tasks.empty())
-                                return;
-                            task = std::move(this->tasks.front());
-                            this->tasks.pop();
-                        }
-                        task();
+public:
+    ThreadPool(size_t threads) : stop(false) {
+        for(size_t i = 0; i < threads; ++i)
+            workers.emplace_back([this] {
+                for(;;) {
+                    std::function<void()> task;
+                    {
+                        std::unique_lock<std::mutex> lock(this->queue_mutex);
+                        this->condition.wait(lock,
+                            [this]{ return this->stop || !this->tasks.empty(); });
+                        if(this->stop && this->tasks.empty())
+                            return;
+                        task = std::move(this->tasks.front());
+                        this->tasks.pop();
                     }
-                });
+                    task();
+                }
+            });
+    }
+
+    template<class F>
+    void enqueue(F&& f) {
+        {
+            std::unique_lock<std::mutex> lock(queue_mutex);
+            tasks.emplace(std::forward<F>(f));
         }
-    
-        template<class F>
-        void enqueue(F&& f) {
-            {
-                std::unique_lock<std::mutex> lock(queue_mutex);
-                tasks.emplace(std::forward<F>(f));
-            }
-            condition.notify_one();
+        condition.notify_one();
+    }
+
+    ~ThreadPool() {
+        {
+            std::unique_lock<std::mutex> lock(queue_mutex);
+            stop = true;
         }
-    
-        ~ThreadPool() {
-            {
-                std::unique_lock<std::mutex> lock(queue_mutex);
-                stop = true;
-            }
-            condition.notify_all();
-            for(std::thread &worker: workers)
-                worker.join();
-        }
-    
-    private:
-        std::vector<std::thread> workers;
-        std::queue<std::function<void()>> tasks;
-        std::mutex queue_mutex;
-        std::condition_variable condition;
-        bool stop;
+        condition.notify_all();
+        for(std::thread &worker: workers)
+            worker.join();
+    }
+
+private:
+    std::vector<std::thread> workers;
+    std::queue<std::function<void()>> tasks;
+    std::mutex queue_mutex;
+    std::condition_variable condition;
+    bool stop;
 };
 
 void quality_diff_base_build(std::vector<std::string>quality_diff_base_blocks, const std::string quality_diff_base)
@@ -209,8 +232,8 @@ void SaveMatrixToWebpLossless(const std::vector<std::vector<uint8_t>>& matrix,
         throw std::invalid_argument("输入矩阵列数错误");
     }
 
-    // 创建输出目录（与原代码相同）
-    if (system(("mkdir -p " + output_dir).c_str()) != 0) {
+    // 创建输出目录（线程安全）
+    if (!create_directory_safe(output_dir)) {
         throw std::runtime_error("创建目录失败: " + output_dir);
     }
 
@@ -434,56 +457,62 @@ void SaveAsciiMatrixToWebpLossless(const std::vector<std::vector<uint8_t>>& matr
     }
 }
 
-
 void ProcessQualityBlocks(const std::vector<std::string>& quality_blocks, 
                          const std::string& output_prefix, int file_id, int read_length, const std::string quality_diff_base) {
     std::vector<std::vector<uint8_t>> image_matrix;
-    /*
+    std::vector<std::string>quality_diff_base_blocks;
+    
     for (const auto& block : quality_blocks) {
         if (block.length() != read_length) {
-            throw std::runtime_error("Invalid block length: " + std::to_string(block.length()));
-        }
-        
-        std::string binary = ConvertToBinaryString(block, read_length);
-        image_matrix.push_back(BinaryToBytes(binary, read_length));
-    }
-    */
-    std::vector<std::string>quality_diff_base_blocks;
-    for (const auto& block : quality_blocks) {
-        if (block.length() != 150) {
             throw std::runtime_error("无效的块长度: " + std::to_string(block.length()) +
-                                     "。每个块必须是150个字符。");
+                                     "。每个块必须是read_length个字符。ID=" + std::to_string(file_id));
         }
         std::vector<uint8_t> ascii_row;
         std::string diff_base;
-        ascii_row.reserve(150);
+        ascii_row.reserve(read_length);
         diff_base.clear();
         for (char c : block) {
+            //ascii_row.push_back((uint8_t)c);
+            
             if(c=='F')ascii_row.push_back(0);
             else
             {
                 ascii_row.push_back(255);
                 diff_base += c;
             }
+            
         }
         image_matrix.push_back(ascii_row);
         quality_diff_base_blocks.push_back(diff_base);
+        
     }
-    if(image_matrix.size())std::cout<<"matrix size: "<<image_matrix.size()<<" "<<image_matrix[0].size()<<std::endl;
-    //SaveMatrixToWebpLossless(image_matrix, output_prefix, read_length);
-    SaveAsciiMatrixToWebpLossless(image_matrix, output_prefix, read_length);
-    quality_diff_base_build(quality_diff_base_blocks, quality_diff_base);
+    
+    if(!image_matrix.empty()) {
+        std::cout << "[Debug] ID=" << file_id << " matrix size: " << image_matrix.size() << " x " << image_matrix[0].size() << std::endl;
+        SaveAsciiMatrixToWebpLossless(image_matrix, output_prefix, read_length);
+        quality_diff_base_build(quality_diff_base_blocks, quality_diff_base);
+    } else {
+        std::cout << "[Warning] ID=" << file_id << " image matrix is empty, skip WebP generation" << std::endl;
+    }
 }
+
 std::vector<std::string> ReadQualityScoreBlocks(int id, char *quality_score_dir, int read_length) {
     std::string filename = std::string(quality_score_dir) + "/quality_score." + std::to_string(id) + ".bin";
 
     std::ifstream in_file(filename, std::ios::binary);
     if (!in_file) {
-        throw std::runtime_error("cannot open the file: " + filename);
+        std::string err_msg = "Cannot open file (ID=" + std::to_string(id) + "): " + filename;
+        std::cerr << "[Error] " << err_msg << std::endl;
+        throw std::runtime_error(err_msg);
     }
 
     size_t block_count = 0;
     in_file.read(reinterpret_cast<char*>(&block_count), sizeof(size_t));
+    if (in_file.fail()) {
+        std::string err_msg = "Failed to read block count (ID=" + std::to_string(id) + "): " + filename;
+        std::cerr << "[Error] " << err_msg << std::endl;
+        throw std::runtime_error(err_msg);
+    }
 
     std::vector<std::string> blocks;
     blocks.reserve(block_count);
@@ -491,33 +520,42 @@ std::vector<std::string> ReadQualityScoreBlocks(int id, char *quality_score_dir,
     for (size_t i = 0; i < block_count; ++i) {
         size_t code_len = 0;
         in_file.read(reinterpret_cast<char*>(&code_len), sizeof(size_t));
+        if (in_file.fail()) {
+            std::string err_msg = "Failed to read code length (ID=" + std::to_string(id) + ", block=" + std::to_string(i) + "): " + filename;
+            std::cerr << "[Error] " << err_msg << std::endl;
+            throw std::runtime_error(err_msg);
+        }
 
         std::string str(code_len, '\0');
         in_file.read(&str[0], code_len);
+        if (in_file.fail() && !in_file.eof()) {
+            std::string err_msg = "Failed to read block data (ID=" + std::to_string(id) + ", block=" + std::to_string(i) + "): " + filename;
+            std::cerr << "[Error] " << err_msg << std::endl;
+            throw std::runtime_error(err_msg);
+        }
 
         if (code_len != read_length) {
-            std::cerr << "warning: file" << id << "the" << i 
-                      << "block length is error: " << code_len << std::endl;
+            std::cerr << "[Warning] ID=" << id << " block=" << i << " length error: expected " << read_length << ", got " << code_len << std::endl;
+        } else {
+            blocks.emplace_back(std::move(str));
         }
-        else blocks.emplace_back(std::move(str));
     }
 
-
-    if (in_file.fail() && !in_file.eof()) {
-        throw std::runtime_error("cannot read the file: " + filename);
-    }
-
+    std::cout << "[Debug] ID=" << id << " read " << blocks.size() << " valid blocks from " << filename << std::endl;
     return blocks;
 }
 
 void webp_main(char *quality_score_dir, char *webp_dir, int thread_n, int total, int read_length) {
     try {
-        const int TOTAL_FILES = total + 1;
+        // 修正任务边界：ID范围 [0, total]，共 total + 1 个任务
         const int START_ID = 0;
-        const int NUM_FILES = TOTAL_FILES - START_ID;
+        const int END_ID = total;
+        const int NUM_FILES = END_ID - START_ID + 1;
+
+        std::cout << "[Info] Starting processing: ID range [" << START_ID << ", " << END_ID << "], total " << NUM_FILES << " files, " << thread_n << " threads" << std::endl;
 
         // 线程池配置
-        const unsigned int num_workers = thread_n;
+        const unsigned int num_workers = static_cast<unsigned int>(thread_n);
         ThreadPool thread_pool(num_workers);
         
         // 并发控制
@@ -527,17 +565,20 @@ void webp_main(char *quality_score_dir, char *webp_dir, int thread_n, int total,
         std::mutex exception_mutex;
 
         // 提交任务
-        for (int id = START_ID; id < TOTAL_FILES; ++id) {
+        for (int id = START_ID; id <= END_ID; ++id) {
+            std::cout << "[Debug] Submitting task for ID=" << id << std::endl;
             thread_pool.enqueue([id, webp_dir, quality_score_dir, &files_completed, &cout_mutex, 
                 &global_exception, &exception_mutex, read_length]() 
             {
+                bool task_success = false;
                 try {
+                    // 读取质量分数块
                     const auto blocks = ReadQualityScoreBlocks(id, quality_score_dir, read_length);
-                    if(blocks.size()==0)
-                    {
+                    
+                    if(blocks.empty()) {
                         std::lock_guard<std::mutex> lock(cout_mutex);
-                        std::cout << "[Warning] No blocks found in file " << id << std::endl;
-                        ++files_completed;
+                        std::cout << "[Warning] ID=" << id << " no valid blocks found, skip processing" << std::endl;
+                        task_success = true; // 空文件视为处理成功
                         return;
                     }
                     
@@ -545,38 +586,59 @@ void webp_main(char *quality_score_dir, char *webp_dir, int thread_n, int total,
                     const std::string output_path = std::string(webp_dir) + "/combined_output." + std::to_string(id);
                     std::string dir(webp_dir);
                     size_t last_slash = dir.find_last_of("/\\");
-                    std::string parent_dir;
-                    if (last_slash == std::string::npos) {
-                        parent_dir =  ".";
-                    }
-                    else parent_dir = dir.substr(0, last_slash);
+                    std::string parent_dir = (last_slash == std::string::npos) ? "." : dir.substr(0, last_slash);
                     const std::string quality_diff_base_dir = parent_dir + "/quality_diff_base";
-                    mkdir(quality_diff_base_dir.c_str(), 0755);
                     const std::string quality_diff_base = quality_diff_base_dir + "/diff_" + std::to_string(id) + ".bin";
                     
-                    // 创建输出目录（线程安全）
-                    {
-                        if (system(("mkdir -p " + output_path).c_str()) != 0) {
-                            throw std::runtime_error("Failed to create directory: " + output_path);
+                    try {
+                        if (create_directory_safe(output_path)) {
+                            std::lock_guard<std::mutex> lock(cout_mutex);
+                            std::cout << "[Info] ID=" << id << " Output directory is ready: " << output_path << std::endl;
                         }
+                    } catch (const std::exception& e) {
+                        throw std::runtime_error("Failed to prepare output directory: " + output_path + " | " + e.what());
+                    }
+
+                    try {
+                        if (create_directory_safe(quality_diff_base_dir)) {
+                            std::lock_guard<std::mutex> lock(cout_mutex);
+                            std::cout << "[Info] ID=" << id << " Quality diff directory is ready: " << quality_diff_base_dir << std::endl;
+                        }
+                    } catch (const std::exception& e) {
+                        throw std::runtime_error("Failed to prepare quality_diff_base directory: " + quality_diff_base_dir + " | " + e.what());
                     }
 
                     // 处理并保存
                     ProcessQualityBlocks(blocks, output_path, id, read_length, quality_diff_base);
+                    task_success = true;
 
-                    // 输出进度（线程安全）
-                    {
-                        std::cout << "[Success] Processed file " << id 
-                                  << " (" << blocks.size() << " blocks)" 
-                                  << std::endl;
-                    }
-
-                    ++files_completed;
-                } catch (...) {
-                    std::lock_guard<std::mutex> lock(exception_mutex);
+                } catch (const std::exception& e) {
+                    std::lock_guard<std::mutex> lock(cout_mutex);
+                    std::cerr << "[Error] ID=" << id << " processing failed: " << e.what() << std::endl;
+                    
+                    std::lock_guard<std::mutex> lock_ex(exception_mutex);
                     if (!global_exception) {
                         global_exception = std::current_exception();
                     }
+                } catch (...) {
+                    std::lock_guard<std::mutex> lock(cout_mutex);
+                    std::cerr << "[Error] ID=" << id << " processing failed: Unknown exception" << std::endl;
+                    
+                    std::lock_guard<std::mutex> lock_ex(exception_mutex);
+                    if (!global_exception) {
+                        global_exception = std::current_exception();
+                    }
+                }
+                
+                // 无论成功/失败，都标记任务完成
+                ++files_completed;
+                
+                // 输出最终状态
+                std::lock_guard<std::mutex> lock(cout_mutex);
+                if (task_success) {
+                    std::cout << "[Success] Processed ID=" << id << std::endl;
+                } else {
+                    std::cout << "[Failed] Skipped ID=" << id << " (see error log above)" << std::endl;
                 }
             });
         }
@@ -586,28 +648,29 @@ void webp_main(char *quality_score_dir, char *webp_dir, int thread_n, int total,
         while (files_completed < NUM_FILES) {
             std::this_thread::sleep_for(std::chrono::seconds(1));
             
-            // 异常检查
+            // 异常检查：如果有异常，立即终止
             std::lock_guard<std::mutex> lock(exception_mutex);
             if (global_exception) {
+                std::cerr << "[Fatal] Aborting processing due to first exception" << std::endl;
                 std::rethrow_exception(global_exception);
             }
 
-            // 输出进度
+            // 输出详细进度
             const auto elapsed = std::chrono::duration_cast<std::chrono::seconds>(
                 std::chrono::steady_clock::now() - start_time
             ).count();
-            
-            std::cout << "Progress: " << files_completed << "/" << NUM_FILES
-                      << " (" << elapsed << "s elapsed)" 
-                      << std::endl;
+            int remaining = NUM_FILES - files_completed;
+            double rate = (files_completed > 0) ? static_cast<double>(files_completed) / elapsed : 0.0;
+            double eta = (rate > 0) ? remaining / rate : -1;
+
+            std::cout << "[Progress] " << files_completed << "/" << NUM_FILES 
+                      << " (remaining: " << remaining << ", elapsed: " << elapsed << "s"
+                      << (eta > 0 ? ", ETA: " + std::to_string(static_cast<int>(eta)) + "s" : "")
+                      << ")" << std::endl;
         }
 
-        std::cout << "\nAll files processed successfully. Total: " << NUM_FILES 
-                  << std::endl;
-        return;
+        std::cout << "\n[Info] All " << NUM_FILES << " files processed (success/failed count above)" << std::endl;
     } catch (const std::exception& e) {
-        std::cerr << "\nFatal error: " << e.what() << std::endl;
-        return;
+        std::cerr << "\n[Fatal] webp_main failed: " << e.what() << std::endl;
     }
 }
-    
