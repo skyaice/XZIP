@@ -84,6 +84,7 @@ struct ConsumerPerf {
     double ref_ms = 0.0;          // window_id/ref 构造
     double error_io_ms = 0.0;     // write_error_reads_to_fq
     double hamming_ms = 0.0;      // min_hamming_distance
+    double hap_ms = 0.0;          // read-block transformation
     double block_ms = 0.0;        // 填充 Compress_block + push local_blocks
     double flush_ms = 0.0;        // flush_local_blocks
     double cleanup_ms = 0.0;      // BAM 对象归还对象池等
