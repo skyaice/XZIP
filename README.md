@@ -10,8 +10,21 @@ in the archive.
 
 - C++17 and C compilers
 - zlib
-- libwebp (including libsharpyuv)
+- libwebp development headers and library
 - `tar` and `zstd` available on `PATH`
+
+On Debian or Ubuntu:
+
+```bash
+sudo apt update
+sudo apt install -y build-essential pkg-config zlib1g-dev libwebp-dev zstd tar
+```
+
+On Fedora:
+
+```bash
+sudo dnf install -y gcc-c++ gcc make pkgconf-pkg-config zlib-devel libwebp-devel zstd tar
+```
 
 On macOS with Homebrew:
 
@@ -27,12 +40,18 @@ cd XZIP
 make -j
 ```
 
-The executable is written to `build/xzip`. If libwebp is installed in a custom
-location, provide its prefix explicitly:
+The executable is written to `build/xzip`. The Makefile uses `pkg-config` to
+find libwebp on Linux. If libwebp is installed in a custom location, provide
+its prefix explicitly:
 
 ```bash
 make -j WEBP_PREFIX=/path/to/libwebp
 ```
+
+The bundled `src/htslib` directory includes the complete upstream configuration
+and packaging files needed to rebuild or inspect the vendored dependency on a
+Linux system. XZIP itself uses the checked-in `src/htslib/config.h` for its
+normal build.
 
 ## Quick start
 

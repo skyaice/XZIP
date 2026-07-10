@@ -3,21 +3,30 @@ SHELL := /bin/sh
 TARGET := build/xzip
 BUILD_DIR := build/obj
 WEBP_PREFIX ?= $(shell brew --prefix webp 2>/dev/null)
+PKG_CONFIG ?= pkg-config
 
 CXX ?= g++
 CC ?= gcc
 
-CPPFLAGS := -Isrc -Isrc/htslib -Isrc/htslib/htslib -Isrc/htslib/cram \
-	-I/usr/local/include -I/opt/homebrew/include
+CPPFLAGS := -Isrc -Isrc/htslib -Isrc/htslib/htslib -Isrc/htslib/cram
 CXXFLAGS := -std=c++17 -O3 -DNDEBUG -Wall -Wextra -MMD -MP
 CFLAGS := -O3 -DNDEBUG -Wall -MMD -MP
-LDFLAGS := -L/usr/local/lib -L/opt/homebrew/lib
-LDLIBS := -lm -lpthread -lz -lwebp -lsharpyuv
+LDFLAGS :=
+WEBP_CFLAGS := $(shell $(PKG_CONFIG) --cflags libwebp 2>/dev/null)
+WEBP_LIBS := $(shell $(PKG_CONFIG) --libs libwebp 2>/dev/null)
+
+ifeq ($(strip $(WEBP_LIBS)),)
+WEBP_LIBS := -lwebp
+endif
+
+LDLIBS := -lm -lpthread -lz $(WEBP_LIBS)
 
 ifneq ($(strip $(WEBP_PREFIX)),)
 CPPFLAGS += -I$(WEBP_PREFIX)/include
 LDFLAGS += -L$(WEBP_PREFIX)/lib
 endif
+
+CPPFLAGS += $(WEBP_CFLAGS)
 
 CPP_SOURCES := \
 	src/main.cpp \
@@ -44,7 +53,7 @@ check-deps:
 	@command -v zstd >/dev/null 2>&1 || { echo "Missing zstd executable"; exit 1; }
 	@printf '#include <webp/decode.h>\n' | \
 		$(CXX) $(CPPFLAGS) -x c++ -E - >/dev/null 2>&1 || \
-		{ echo "Missing libwebp headers; set WEBP_PREFIX=/path/to/libwebp"; exit 1; }
+		{ echo "Missing libwebp headers; install libwebp-dev or set WEBP_PREFIX=/path/to/libwebp"; exit 1; }
 
 $(TARGET): $(OBJECTS)
 	@mkdir -p $(dir $@)
