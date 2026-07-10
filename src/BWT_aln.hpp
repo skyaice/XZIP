@@ -345,58 +345,7 @@
      }
  };
 
- //debug code:
-
- #define ALT_HIT_POS_MAX 150
-
- struct DEBUG_minimizer_evaluate_per_read{
- //	uint64_t minimizer_N;//total minimizer of read//
- //	uint64_t UNITIG_seed_N;//total seed of read on the UNITIG
- //	//float UNITIG_seed_rate;//the probability of a minimizer find a seed on the UNITIG
- //	uint64_t UNITIG_seed_N_ALT;//total number minimizer of read that search in the alt string
- //	//float ALT_seed_rate;//the probability of a minimizer find a seed on the ALT-SEQ (when fail finding seeds on the UNITIG)
- //	uint64_t ALT_with_seed_minimizer_N;//total number of minimizes that found seeds on the ALT-SEQ (when fail finding seeds on the UNITIG) in a read
- //	uint64_t ALT_seed_N;//total number of seeds on the ALT-SEQ (when fail finding seeds on the UNITIG) in a read
- //	uint16_t minimizer_hit_pos_alt[ALT_HIT_POS_MAX];//(when hit) the minimizer hit position number on the alt string index, when hit is over 149, set to 149
- //	uint64_t ALT_seed_UNIQUE_N;//(when hit) total number of minimizers on the ALT-SEQ that have unique seed(when fail finding seeds on the UNITIG) in a read
- //
- //	//for simulation reads
- //	uint64_t UNITUG_right_hit_seed_N;
- //	uint64_t UNITUG_wrong_hit_seed_N;
- //
- //	uint64_t ALT_right_hit_seed_N;
- //	uint64_t ALT_wrong_hit_seed_N;
- //
- //	//for SIMU reads
- //	//all count:
- //	uint64_t ALL_right_hit_seed_N;
- //	uint64_t ALL_wrong_hit_seed_N;
- //	uint64_t ALL_No_hit_seed_N;
-
-     //
-     uint64_t BWA_hit_N;
-     int wrong_base_idx;
-     uint8_t wrong_base_qual;
-     uint8_t stop_reason;
-
-     void clear(){
-         memset(this, 0, sizeof(DEBUG_minimizer_evaluate_per_read));
-     }
-
-     void show_data(){
- //		fprintf(stderr, "minimizer_N %ld\n", minimizer_N);
- //		fprintf(stderr, "UNITIG_seed_N %ld\n", UNITIG_seed_N);
- //		fprintf(stderr, "UNITIG_seed_N_ALT %ld\n", UNITIG_seed_N_ALT);
- //		fprintf(stderr, "ALT_with_seed_minimizer_N %ld\n", ALT_with_seed_minimizer_N);
- //		fprintf(stderr, "ALT_seed_N %ld\n", ALT_seed_N);
- //		fprintf(stderr, "ALT_seed_UNIQUE_N %ld\n", ALT_seed_UNIQUE_N);
- //		fprintf(stderr, "UNITUG_right_hit_seed_N %ld\n", UNITUG_right_hit_seed_N);
- //		fprintf(stderr, "UNITUG_wrong_hit_seed_N %ld\n", UNITUG_wrong_hit_seed_N);
- //		fprintf(stderr, "ALT_right_hit_seed_N %ld\n", ALT_right_hit_seed_N);
- //		fprintf(stderr, "ALT_wrong_hit_seed_N %ld\n", ALT_wrong_hit_seed_N);
-     }
- };
-
+ #if 0  // Retained temporarily for binary-format archaeology; no runtime references remain.
  #define BWA_hit_N_MAX 100
  struct DEBUG_minimizer_evaluate_overall{
  //	uint64_t minimizer_N[150];//total minimizer number overall
@@ -467,7 +416,7 @@
          fprintf(stderr, "\n");
      }
  };
-
+ #endif
 
  struct OCC_rst{
      uint64_t bwt_bg;
@@ -1190,9 +1139,6 @@
      char * sam_buff = NULL;
 
 
-     std::vector<DEBUG_minimizer_evaluate_per_read>  debug_eval_r1; //
-     std::vector<DEBUG_minimizer_evaluate_per_read>  debug_eval_r2; //
-
      int 		readNum;
      void 	*	share_data_pointer;// register for the shared data
 
@@ -1218,8 +1164,6 @@
      Classify_buff_pool 	*buff = NULL;//data used for each classify thread
      CLASSIFY_THREAD_DATA *data = NULL;//for each pipeline thread
 
-     DEBUG_minimizer_evaluate_overall debug_eval_all;
-
      std::vector<OCC_rst1> all_occ_rst; //list to store final OCC
      std::vector<MAP_rst> all_map_r; //list to store final mapping rst
      bam1_t* input_bam_buff;
@@ -1230,7 +1174,7 @@
 
  struct BWT_CLASSIFY_MAIN{
      CLASSIFY_SHARE_DATA *share = NULL;
-     void init_run(int argc, char *argv[]);
+     int init_run(int argc, char *argv[]);
  private:
      void map_r_sort(std::vector<MAP_rst> & r);
      static void *classify_pipeline(void *shared, int step, int tid, void *_data);									//pipeline
@@ -1242,7 +1186,7 @@
  struct DECOMPRESS_MAIN
  {
      CLASSIFY_SHARE_DATA *share = NULL;
-     void run(int argc, char *argv[]);
+     int run(int argc, char *argv[]);
 
  };
 

@@ -17,14 +17,12 @@ void print_usage(const char* program) {
 
 int run_compress(int argc, char** argv) {
     BWT_aln::BWT_CLASSIFY_MAIN compressor;
-    compressor.init_run(argc, argv);
-    return 0;
+    return compressor.init_run(argc, argv);
 }
 
 int run_decompress(int argc, char** argv) {
     BWT_aln::DECOMPRESS_MAIN decompressor;
-    decompressor.run(argc, argv);
-    return 0;
+    return decompressor.run(argc, argv);
 }
 
 }  // namespace

@@ -84,7 +84,6 @@ struct ConsumerPerf {
     double ref_ms = 0.0;          // window_id/ref 构造
     double error_io_ms = 0.0;     // write_error_reads_to_fq
     double hamming_ms = 0.0;      // min_hamming_distance
-    double hap_ms = 0.0;          // find_best_hap
     double block_ms = 0.0;        // 填充 Compress_block + push local_blocks
     double flush_ms = 0.0;        // flush_local_blocks
     double cleanup_ms = 0.0;      // BAM 对象归还对象池等
@@ -94,26 +93,11 @@ struct ConsumerPerf {
 static std::mutex g_perf_print_mutex;
 
 
- #define PIPELINE_T_NUM 3//one for reading; one for classifying; one for writing
- #define STEP_NUM PIPELINE_T_NUM
- #define N_NEEDED_B 2000000 //2M read pair per time
- #define N_NEEDED N_NEEDED_B+100
- #define WINDOW_ID_MAX 50000000
- #define MAX_MEM_BUFFER_SIZE 1000000
  std::atomic<uint64_t> read_sum{0};
- int cnt_14;
  int g_global_read_length = 0;
  std::vector<int>chr_bg_wb_ID;
  std::vector<Window_t> g_window_info;
- //debug below
- int max_match_length_count[455];
- int hamming_count[455];
- int hamming_origin[455];
- int diff_base_length[4000][455];
-uint64_t quality_score_count[256];
 std::array<std::atomic<bool>, 256> g_quality_score_seen{};
- int invalid_window = 0;
- //debug above
 
  FastaData genome;
 
@@ -139,44 +123,6 @@ std::array<std::atomic<bool>, 256> g_quality_score_seen{};
      /* 224 */ 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A',
      /* 240 */ 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A',
  };
-
-// 在原有CharPtrHash结构体后添加std::string重载
-struct CharPtrHash {
-    // 原有：支持const char*
-    size_t operator()(const char* str) const {
-        size_t hash = 0;
-        while (*str) {
-            hash = hash * 31 + *str++;
-        }
-        return hash;
-    }
-    // 新增：支持std::string（调用原有const char*版本）
-    size_t operator()(const std::string& str) const {
-        return operator()(str.c_str()); // 复用原有哈希逻辑
-    }
-};
-
-// 在原有CharPtrEqual结构体后添加std::string重载
-struct CharPtrEqual {
-    // 原有：支持const char*
-    bool operator()(const char* a, const char* b) const {
-        return strcmp(a, b) == 0;
-    }
-    // 新增：支持std::string（调用原有const char*版本）
-    bool operator()(const std::string& a, const std::string& b) const {
-        return operator()(a.c_str(), b.c_str()); // 复用原有比较逻辑
-    }
-};
-
-
- size_t bitLength(uint64_t num) {
-     size_t length = 0;
-     while (num > 0) {
-         length += 2;
-         num >>= 2; // 每次右移两位
-     }
-     return length;
- }
 
  std::string convertBitsToString(const std::vector<unsigned char>& binary_data, size_t code_len) {
     std::string bit_str;
@@ -669,28 +615,6 @@ uint64_t peak_memory_bytes() {
 #endif
 }
 
-bool write_compression_metrics(const std::string& metrics_path,
-                               const std::string& archive_path,
-                               QualityCodec codec,
-                               double cpu_seconds,
-                               double real_seconds,
-                               bool archive_ok,
-                               bool intermediates_retained) {
-    std::error_code ec;
-    const uint64_t archive_bytes = fs::is_regular_file(archive_path, ec)
-        ? fs::file_size(archive_path, ec) : 0;
-    std::ofstream out(metrics_path, std::ios::out | std::ios::trunc);
-    if (!out) return false;
-    out << "cpu_seconds=" << cpu_seconds << '\n'
-        << "real_seconds=" << real_seconds << '\n'
-        << "peak_memory_bytes=" << peak_memory_bytes() << '\n'
-        << "archive_bytes=" << archive_bytes << '\n'
-        << "quality_codec=" << quality_codec_name(codec) << '\n'
-        << "archive_ok=" << (archive_ok ? 1 : 0) << '\n'
-        << "intermediates_retained=" << (intermediates_retained ? 1 : 0) << '\n';
-    return out.good();
-}
-
 bool write_partition_read_offsets(const std::string& parent_dir,
                                   const std::vector<uint64_t>& partition_block_counts) {
     std::ofstream out(parent_dir + "/partition_read_offsets.txt",
@@ -809,17 +733,6 @@ size_t count_observed_quality_scores() {
              );
  }
 
- void test(const char* fn){
-     FILE* fp1 = fopen(fn, "rb");
-     Read_BWT *tmp = (Read_BWT *)xcalloc(2000,sizeof(Read_BWT));
-     fread(tmp, sizeof(Read_BWT), 2000, fp1);
-     for(int i= 0; i< 2000; i++){
-         fprintf(stderr, "%llu \n", tmp[i].bwt_k);
-     }
-
-     fclose(fp1);
-
- }
  bool compare(const Compress_block& a, const Compress_block& b) {
      if (a.window_id != b.window_id) {
          return a.window_id < b.window_id;
@@ -1391,10 +1304,6 @@ bool read_compressed_block(Compress_final_block_with_huffman_table& blocks_with_
             std::cerr << "读取qname内容失败" << std::endl;
             return false;
         }
-        if(strcmp(block.qname,"E100003278L1C011R0371909053")==0)
-         {
-            std::cout<<"debug\n";
-         }
         // 新增：读取real_seq1
         int real_seq1_len = 0;
         if (!in_file.read(reinterpret_cast<char*>(&real_seq1_len), sizeof(int))) {
@@ -1783,118 +1692,6 @@ int create_output_dir_c(char* webp_dir, char* output_dir, int output_dir_len) {
     return 0;
 }
 
-int delta=0;
-std::string fix_the_index(char *hs, char *ts, char *seq, uint16_t *hap_offset, int i, uint8_t *hn,
-    uint8_t *tn, int *max_match_length, std::string hap_string_buff)
-{
-    std::string middle="";
-    std::string reverse_seq = "";
-    middle.clear();
-    delta += (i - (int)(*hn)) + 1;
-    *hap_offset += (i - (int)(*hn)) + 1;
-    *max_match_length -= (i - (unsigned int)(*hn)) + 1;
-    *hn = i + 1;
-
-    memcpy(hs, seq, *hn);
-    hs[*hn] = '\0';
-    memcpy(ts, seq + *hn + *max_match_length, *tn);
-    ts[*tn] = '\0';
-    for (int k = *hap_offset; k < *hap_offset + *max_match_length; k++) {
-        if (k >= 0 && k < (int)hap_string_buff.size()) {  // 避免越界
-            middle += hap_string_buff[k];
-        }
-    }
-    reverse_seq = std::string(hs) + middle + std::string(ts);
-    return reverse_seq;
-}
-
-int compare_seq(char *seq, std::string reverse_seq)
-{
-    for(int i=0;i<strlen(seq);i++)
-    {
-        if(seq[i]=='N')continue;
-        else if(seq[i]!=reverse_seq[i])
-        {
-            return 0;
-        }
-    }
-    return 1;
-}
-
-uint32_t error_count = 0;
-uint32_t fix_count = 0;
-uint32_t hap_offset_error = 0;
-
-int find_best_hap(std::vector<hap_t> hap_list, std::vector<Variant> var_list, char *seq,
-    uint16_t *hap_id, std::string ref, uint pos, std::string qname,
-    int window_id, std::string &diff_seq, std::string &diff_base, int *best_begin_, int min_hamming_distance)
-{
-    Window_t c_window_item;
-    c_window_item.hap_list = hap_list;
-    c_window_item.var_list = var_list;
-    std::string hap_string_buff;
-    int hamming_distance  = min_hamming_distance;
-    int best_hap = 0;
-    int best_begin = 0;
-    for(int i = 0; i < hap_list.size();i++)
-    {
-        hap_string_buff.clear();
-        c_window_item.get_hap_string(i, ref, hap_string_buff);
-        int j = -g_global_read_length;
-        int hap_size = hap_string_buff.size();
-        for(; j < hap_size; j++)
-        {
-            int hamming_test = 0;
-            int k = 0;
-            for(; k < g_global_read_length; k++)
-            {
-                if(j+k<0||j+k>=hap_size)
-                {
-                    hamming_test++;
-                }
-                else if(seq[k]!=hap_string_buff[j+k])hamming_test++;
-                if(hamming_test > hamming_distance)break;
-            }
-            if(hamming_test <= hamming_distance)
-            {
-                best_hap = i;
-                best_begin = j;
-                hamming_distance = hamming_test;
-            }
-        }
-    }
-    *hap_id = best_hap;
-    *best_begin_ = best_begin;
-    hap_string_buff.clear();
-    c_window_item.get_hap_string(best_hap, ref, hap_string_buff);
-    int test_hamming = 0;
-    for(int i=0;i<g_global_read_length;i++)
-    {
-        if(best_begin+i<0||best_begin+i>=hap_string_buff.size())
-        {
-            diff_seq += '1';
-            diff_base += seq[i];
-            test_hamming++;
-        }
-        else if(seq[i]==hap_string_buff[best_begin+i])diff_seq += '0';
-        else
-        {
-            diff_seq += '1';
-            diff_base += seq[i];
-            test_hamming++;
-        }
-    }
-    hamming_count[test_hamming]++;
-    if(qname=="E100003278L1C019R0042180231")
-    {
-        std::cout<<"window_id: "<<window_id<<std::endl;
-        std::cout<<"hap_id: "<<best_hap<<std::endl;
-        std::cout<<"hap_offset: "<<best_begin<<std::endl;
-        std::cout<<"hap_list.size: "<<hap_list.size()<<std::endl;
-    }
-    return hap_string_buff.size();
-}
-
 struct RawBAMData {
     bam1_t* bam_ptr;  // 原始BAM数据（消费者处理后归还对象池）
 };
@@ -2195,65 +1992,6 @@ void close_error_fastq_writer() {
         fprintf(stderr, "[BAM-INFO] error.baminfo records=%" PRIu64 "\n",
                 g_error_baminfo_records.load(std::memory_order_relaxed));
     }
-}
-
-void write_single_block_to_file(FILE* fp, const Compress_block& block) {
-    // R1 固定成员
-    fwrite(&block.window_id,   sizeof(block.window_id),   1, fp);
-    fwrite(&block.hap_offset,  sizeof(block.hap_offset),  1, fp);  // wb_ref_pos1
-    fwrite(block.qname,        sizeof(block.qname),        1, fp);
-    fwrite(&block.lqname,      sizeof(block.lqname),       1, fp);
-    fwrite(&block.flags_1,     sizeof(block.flags_1),      1, fp);
-
-    // R1 字符串
-    size_t q1_len = block.quality_score1.size();
-    fwrite(&q1_len, sizeof(q1_len), 1, fp);
-    fwrite(block.quality_score1.data(), q1_len, 1, fp);
-
-    size_t s1_len = block.real_seq1.size();
-    fwrite(&s1_len, sizeof(s1_len), 1, fp);
-    fwrite(block.real_seq1.data(), s1_len, 1, fp);
-
-    size_t d1_len = block.diff_seq1.size();
-    fwrite(&d1_len, sizeof(d1_len), 1, fp);
-    fwrite(block.diff_seq1.data(), d1_len, 1, fp);
-
-    size_t db1_len = block.diff_base1.size();
-    fwrite(&db1_len, sizeof(db1_len), 1, fp);
-    fwrite(block.diff_base1.data(), db1_len, 1, fp);
-    std::vector<char> metadata_buffer;
-    append_bam_metadata(metadata_buffer, block.bam_meta1);
-    fwrite(metadata_buffer.data(), metadata_buffer.size(), 1, fp);
-
-    // R2 固定成员
-    fwrite(&block.window_id2,  sizeof(block.window_id2),  1, fp);
-    fwrite(&block.hap_offset2, sizeof(block.hap_offset2), 1, fp);  // wb_ref_pos2
-    fwrite(block.qname2,       sizeof(block.qname2),       1, fp);
-    fwrite(&block.lqname2,     sizeof(block.lqname2),      1, fp);
-    fwrite(&block.flags_2,     sizeof(block.flags_2),      1, fp);
-    fwrite(&block.is_paired,   sizeof(block.is_paired),    1, fp);
-
-    // R2 字符串
-    size_t q2_len = block.quality_score2.size();
-    fwrite(&q2_len, sizeof(q2_len), 1, fp);
-    fwrite(block.quality_score2.data(), q2_len, 1, fp);
-
-    size_t s2_len = block.real_seq2.size();
-    fwrite(&s2_len, sizeof(s2_len), 1, fp);
-    fwrite(block.real_seq2.data(), s2_len, 1, fp);
-
-    size_t d2_len = block.diff_seq2.size();
-    fwrite(&d2_len, sizeof(d2_len), 1, fp);
-    fwrite(block.diff_seq2.data(), d2_len, 1, fp);
-
-    size_t db2_len = block.diff_base2.size();
-    fwrite(&db2_len, sizeof(db2_len), 1, fp);
-    fwrite(block.diff_base2.data(), db2_len, 1, fp);
-    metadata_buffer.clear();
-    append_bam_metadata(metadata_buffer, block.bam_meta2);
-    fwrite(metadata_buffer.data(), metadata_buffer.size(), 1, fp);
-
-    fwrite(&block.error_flag, sizeof(block.error_flag), 1, fp);
 }
 
 template <typename T>
@@ -3386,21 +3124,25 @@ std::vector<int> build_chr_bg_wb_ID() {
     return chr_bg_wb_ID;
 }
 
-void BWT_CLASSIFY_MAIN::init_run(int argc, char *argv[]){
+int BWT_CLASSIFY_MAIN::init_run(int argc, char *argv[]){
     double cpu_time = cputime();
     double real_time1 = realtime();
     share = new CLASSIFY_SHARE_DATA();
     g_share = share;
     share->o = new OL_PAR();
     if (share->o->get_option(argc, argv) != 0) {
-        return;
+        delete share->o;
+        delete share;
+        return 2;
     }
     g_input_is_paired = (share->o->paired_end != 0);
     char *input_bam_fn = share->o->read_bam;
     htsFile *input_file = hts_open(input_bam_fn, "rb");
     if (!input_file) {
         fprintf(stderr, "Failed to open BAM file: %s\n", input_bam_fn);
-        return;
+        delete share->o;
+        delete share;
+        return 1;
     }
     const int total_thread_budget = std::max(1, share->o->thread_n);
     const int bam_io_threads = 1;
@@ -3645,6 +3387,7 @@ void BWT_CLASSIFY_MAIN::init_run(int argc, char *argv[]){
     fprintf(stderr, "Total REAL time: %.2f s\n", total_real_seconds);
     fprintf(stderr, "Peak memory: %llu bytes\n",
             (unsigned long long)peak_memory_bytes());
+    return archive_ok ? 0 : 1;
 }
 
 
@@ -4002,28 +3745,6 @@ std::vector<std::pair<std::string, std::string>> read_quality_scores(
         quality_pairs.emplace_back(qual1, qual2);
     }
     return quality_pairs;
-}
-
-// 从reverse_*.txt读取回复序列
-std::vector<std::pair<std::string, std::string>> read_reverse_seqs(const std::string& base_dir, int id) {
-    std::vector<std::pair<std::string, std::string>> seq_pairs;
-    std::string file_path = base_dir + "/reverse_seq/reverse_" + std::to_string(id) + ".txt";
-    std::ifstream in(file_path);
-    if (!in.is_open()) {
-        std::cerr << "无法打开回复序列文件: " << file_path << std::endl;
-        return seq_pairs;
-    }
-
-    std::string line;
-    while (std::getline(in, line)) {
-        std::istringstream iss(line);
-        size_t index;
-        std::string seq1, seq2;
-        if (iss >> index >> seq1 >> seq2) {
-            seq_pairs.emplace_back(seq1, seq2);
-        }
-    }
-    return seq_pairs;
 }
 
 std::vector<std::pair<uint16_t, uint16_t>> read_flags(const std::string& parent_dir, int id)
@@ -4938,7 +4659,7 @@ void go_to_decompress_pos(std::vector<uint32_t> pre_window_id_vector,
               << (cputime() - start_time) << " sec" << std::endl;
 }
 
-void DECOMPRESS_MAIN::run(int argc, char* argv[])
+int DECOMPRESS_MAIN::run(int argc, char* argv[])
 {
     std::cout << "work decompress" << std::endl;
     double cpu_time = cputime();
@@ -4947,8 +4668,11 @@ void DECOMPRESS_MAIN::run(int argc, char* argv[])
     share = new CLASSIFY_SHARE_DATA();
     g_share = share;
     share->o = new OL_PAR();
-    if (share->o->get_decompress_option(argc, argv) != 0)
-        return;
+    if (share->o->get_decompress_option(argc, argv) != 0) {
+        delete share->o;
+        delete share;
+        return 2;
+    }
     const std::string archive_path = share->o->archive_path;
     const std::string parent_dir = archive_path + ".unpacked";
     const fs::path archive_parent = fs::absolute(fs::path(archive_path)).parent_path();
@@ -4958,12 +4682,12 @@ void DECOMPRESS_MAIN::run(int argc, char* argv[])
     share->o->fastq_output_dir = strdup(fastq_output_prefix.c_str());
     if (!extract_xzip_archive(archive_path, parent_dir)) {
         delete share->o; delete share;
-        return;
+        return 1;
     }
     if (!read_xzip_manifest(parent_dir, share->o)) {
         std::cerr << "[FATAL] invalid or missing xzip_manifest.txt" << std::endl;
         delete share->o; delete share;
-        return;
+        return 1;
     }
     g_global_o = share->o;
     g_restore_bam_enabled = false;
@@ -4972,12 +4696,12 @@ void DECOMPRESS_MAIN::run(int argc, char* argv[])
             std::cerr << "[FATAL] Cannot restore BAM: archive lacks full BAM metadata or preserved qnames"
                       << std::endl;
             delete share->o; delete share;
-            return;
+            return 1;
         }
         g_restore_bam_enabled = prepare_bam_restore_inputs(archive_path, parent_dir);
         if (!g_restore_bam_enabled) {
             delete share->o; delete share;
-            return;
+            return 1;
         }
     }
     if (g_restore_bam_enabled) {
@@ -4990,7 +4714,7 @@ void DECOMPRESS_MAIN::run(int argc, char* argv[])
         std::cerr << "[FATAL] archive manifest says qnames are preserved, but qnames/ is missing"
                   << std::endl;
         delete share->o; delete share;
-        return;
+        return 1;
     }
     g_input_is_paired = (share->o->paired_end != 0);
     char output_dir[512];
@@ -5004,7 +4728,7 @@ void DECOMPRESS_MAIN::run(int argc, char* argv[])
     if (!pre_window_txt_file.is_open()) {
         std::cerr << "错误：无法读取 " << pre_window_id_txt_path << std::endl;
         delete share->o; delete share;
-        return;
+        return 1;
     }
     std::string line;
     while (std::getline(pre_window_txt_file, line)) {
@@ -5016,7 +4740,7 @@ void DECOMPRESS_MAIN::run(int argc, char* argv[])
     if (pre_window_id_vector.empty()) {
         std::cerr << "错误：pre_window_id 为空" << std::endl;
         delete share->o; delete share;
-        return;
+        return 1;
     }
     std::cout << "成功读取 " << pre_window_id_vector.size() << " 个 pre_window_id。" << std::endl;
     genome = read_fasta(std::string(share->o->fasta_path));
@@ -5028,7 +4752,7 @@ void DECOMPRESS_MAIN::run(int argc, char* argv[])
         if (!directory_exists(parent_dir + "/quality_score")) {
             std::cerr << "[FATAL] .xzip 中缺少 quality_score 目录" << std::endl;
             delete share->o; delete share;
-            return;
+            return 1;
         }
     } else {
         std::cout << "[Quality] " << quality_codec_name(quality_codec)
@@ -5043,7 +4767,7 @@ void DECOMPRESS_MAIN::run(int argc, char* argv[])
         if (webp_rc != 0) {
             std::cerr << "[FATAL] WebP quality score reconstruction failed" << std::endl;
             delete share->o; delete share;
-            return;
+            return 1;
         }
     }
     share->o->webp_lossless = (quality_codec == QualityCodec::ZstdLossless) ? 1 : 0;
@@ -5061,4 +4785,5 @@ void DECOMPRESS_MAIN::run(int argc, char* argv[])
     fprintf(stderr, "Total REAL time: %.2f s\n", realtime() - real_time1);
     delete share->o;
     delete share;
+    return 0;
 }
