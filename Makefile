@@ -2,6 +2,8 @@ SHELL := /bin/sh
 
 TARGET := build/xzip
 BUILD_DIR := build/obj
+PREFIX ?= /usr/local
+DESTDIR ?=
 WEBP_PREFIX ?= $(shell brew --prefix webp 2>/dev/null)
 PKG_CONFIG ?= pkg-config
 
@@ -45,15 +47,26 @@ C_OBJECTS := $(patsubst %.c,$(BUILD_DIR)/%.o,$(C_SOURCES))
 OBJECTS := $(CPP_OBJECTS) $(C_OBJECTS)
 DEPS := $(OBJECTS:.o=.d)
 
-.PHONY: all check clean
+.PHONY: all check check-deps doctor install clean
 
 all: check-deps $(TARGET)
 
 check-deps:
+	@command -v tar >/dev/null 2>&1 || { echo "Missing tar executable"; exit 1; }
 	@command -v zstd >/dev/null 2>&1 || { echo "Missing zstd executable"; exit 1; }
 	@printf '#include <webp/decode.h>\n' | \
 		$(CXX) $(CPPFLAGS) -x c++ -E - >/dev/null 2>&1 || \
 		{ echo "Missing libwebp headers; install libwebp-dev or set WEBP_PREFIX=/path/to/libwebp"; exit 1; }
+
+doctor:
+	@printf 'C++ compiler: '; command -v $(CXX)
+	@printf 'C compiler:   '; command -v $(CC)
+	@printf 'tar:          '; command -v tar
+	@printf 'zstd:         '; command -v zstd
+	@printf 'libwebp:      '
+	@printf '#include <webp/decode.h>\n' | \
+		$(CXX) $(CPPFLAGS) -x c++ -E - >/dev/null 2>&1 && echo found || \
+		{ echo missing; echo "Install libwebp development files or set WEBP_PREFIX=/path/to/libwebp"; exit 1; }
 
 $(TARGET): $(OBJECTS)
 	@mkdir -p $(dir $@)
@@ -69,6 +82,11 @@ $(BUILD_DIR)/%.o: %.c
 
 check: all
 	sh tests/smoke_cli.sh
+
+install: all
+	install -d $(DESTDIR)$(PREFIX)/bin
+	install -m 0755 $(TARGET) $(DESTDIR)$(PREFIX)/bin/xzip
+	@echo "Installed $(DESTDIR)$(PREFIX)/bin/xzip"
 
 clean:
 	rm -rf build
