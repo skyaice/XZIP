@@ -23,9 +23,8 @@
  #include <inttypes.h>
  #include <filesystem>
  #include <system_error>
- #include <chrono>
- #include <ctime>
-#include <random>
+#include <chrono>
+#include <ctime>
 #include <thread>
  #include "BWT_aln.hpp"
  #include "CPPLIB/tools.hpp"
@@ -40,19 +39,7 @@
  #include "./webp_tool/webp_reconstructor_40.h"
 
 
- #include <set>
-
- #include <math.h>
- #include <zlib.h>
  #include "./htslib/htslib/sam.h"
-
- #ifndef HTS_LINE_INCLUDE_NL
- #define HTS_LINE_INCLUDE_NL 1  // 旧版本中用1表示包含换行符
- #endif
-
- #ifndef KS_SEP_LINE
- #define KS_SEP_LINE 2  // 旧版本中KS_SEP_LINE的典型值
- #endif
 
  using namespace BWT_aln;
  using FastaData = std::vector<std::pair<std::string, std::string>>;
@@ -94,36 +81,12 @@ struct ConsumerPerf {
 static std::mutex g_perf_print_mutex;
 
 
- std::atomic<uint64_t> read_sum{0};
  int g_global_read_length = 0;
  std::vector<int>chr_bg_wb_ID;
  std::vector<Window_t> g_window_info;
 std::array<std::atomic<bool>, 256> g_quality_score_seen{};
 
  FastaData genome;
-
- char charTchar[]={
-     /*   0 */ 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A',
-     /*  16 */ 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A',
-     /*  32 */ 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A',
-     /*  48 */ 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A',
-     /*  64 */ 'T', 'A', 'G', 'A', 'A', 'A', 'C', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A',
-     /*    	   A         C                   G                                  N */
-     /*  80 */ 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A',//'Z'
-     /*                        T */
-     /*  96 */ 'T', 'A', 'G', 'A', 'A', 'A', 'C', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A',
-     /*         a         c                   g                                  n */
-     /* 112 */ 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A',
-     /*                        t */
-     /* 128 */ 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A',
-     /* 144 */ 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A',
-     /* 160 */ 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A',
-     /* 176 */ 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A',
-     /* 192 */ 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A',
-     /* 208 */ 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A',
-     /* 224 */ 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A',
-     /* 240 */ 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A',
- };
 
  std::string convertBitsToString(const std::vector<unsigned char>& binary_data, size_t code_len) {
     std::string bit_str;
@@ -671,75 +634,6 @@ size_t count_observed_quality_scores() {
     return distinct;
 }
 
- void reversed_complementary(std::string &seq_i, int read_len)
- {
-     int i = 0;
-     for(i = read_len - 1; i >= read_len/2; i--){
-         char tmp = seq_i[read_len - 1 - i];
-         seq_i[read_len - 1 - i] = charTchar[(int)seq_i[i] - 1];
-         seq_i[i] =  charTchar[(int)tmp - 1];
-
-     }
-
-     //seq_i[read_len] = '\0';
- }
-
- void reversed_qual(std::string &seq_i, int read_len)
- {
-     int i = 0;
-     for(i = read_len - 1; i  >= read_len/2; i--){
-         char tmp = seq_i[read_len - 1 - i];
-         seq_i[read_len - 1 - i] = seq_i[i];
-         seq_i[i] = tmp;
-         }
- }
-
- void SAM_OUT::write_line(int s, uint flag, std::string  &cigar_p, std::string &md_p, kseq_t * read,
-             std::string &chr_id_p, uint32_t ref_p, int nm , int as,  std::string &mate_chr_id_p, uint32_t mate_ref_p, int rev, int read_length, int exc_){
-     exc = exc_;
-     read_p = read;
-     int sam_cross = ref_p + read_length - mate_ref_p;
-     std::string mate_chr = mate_chr_id_p;
-
-     std::string read_seq1 = std::string(read->seq.s);
-     std::string qual = std::string(read->qual.s);
-
-     if(ref_p < mate_ref_p){
-         sam_cross = mate_ref_p - ref_p + read_length;
-     }
-     if(rev){
-         reversed_complementary(read_seq1, read_length);
-         reversed_qual(qual, read_length);
-         sam_cross = - sam_cross;
-
-     }
-
-     //std::string rn = std::string(read->name.s);
-     // std::size_t pos = rn.find("/");      // position of "live" in str
-       // std::string read_name = rn.substr(0, pos);
-
-     if (mate_chr_id_p == chr_id_p) mate_chr="=";
-     else sam_cross = 0;
-
-
-     sam_line.clear();
-     sam_line = (std::string(std::string(read->name.s)+ "\t" + std::to_string(flag & 0Xff) + "\t"
-                 +chr_id_p + "\t" + std::to_string(ref_p)
-                 + "\t" + std::to_string(s) + "\t" + cigar_p + "\t" + mate_chr + "\t"
-                 +  std::to_string(mate_ref_p) + "\t"
-                 + std::to_string(sam_cross) + "\t" +read_seq1 + "\t"
-                 + qual + "\t" + "NM:i:" + std::to_string(nm) + "\t"
-                 + "MD:Z:" + md_p + "\t" + "AS:i:" + std::to_string(as) + "\t" + "RG:Z:readset1"
-             )
-             );
- }
-
- bool compare(const Compress_block& a, const Compress_block& b) {
-     if (a.window_id != b.window_id) {
-         return a.window_id < b.window_id;
-     }
-     return a.hap_id < b.hap_id;
- }
  bool create_directory(const std::string& dir_path)
  {
     #ifdef _WIN32
@@ -1159,7 +1053,7 @@ void store_the_flag(const std::vector<std::pair<uint16_t, uint16_t>>& flag_block
 
 void sort_and_write_file(
         uint32_t &prev_window_id, int id,
-        char *pos_dir, char *quality_score_dir, char *webp_dir,
+        char *pos_dir, char *quality_score_dir,
         std::vector<Compress_block> blocks) {
 
     if (blocks.empty()) return;
@@ -1357,7 +1251,6 @@ bool read_compressed_block(Compress_final_block_with_huffman_table& blocks_with_
         blocks_with_huffman_table.huffmanCode[ch] = code;
     }
 
-    read_sum.fetch_add(blocks_with_huffman_table.Final_blocks.size(), std::memory_order_relaxed);
     return true;
 }
 
@@ -1558,64 +1451,25 @@ std::string diff_seq_read(const char* pos_dir, int id) {
 
      return result;
  }
- uint32_t quick_pow_32(int di, int zhi) {
-    uint32_t sum = 1;
-    while (zhi!= 0) {
-        if (zhi & 1) {    //这里是zhi%2==1的意思
-            sum *= di;
-        }
-        zhi >>= 1;    //这里是zhi/=2的意思，即向右移动一位在二进制中即除以2
-        di = di * di;
-    }
-    return sum;
-}
  uint64_t reverse_dev_num(std::string dev_string)
  {
-     uint64_t final = 0;
-     int length = dev_string.size();
-     std::string num_string;
-     for(int i = 0; i < length; i++)
-     {
-         if(dev_string[i] == 'A')num_string += "00";
-         else if(dev_string[i] == 'C')num_string += "01";
-         else if(dev_string[i] == 'G')num_string += "10";
-         else if(dev_string[i] == 'T')num_string += "11";
+     uint64_t value = 0;
+     for (char base : dev_string) {
+         uint8_t bits;
+         switch (base) {
+             case 'A': bits = 0; break;
+             case 'C': bits = 1; break;
+             case 'G': bits = 2; break;
+             case 'T': bits = 3; break;
+             default: continue;
+         }
+         value = (value << 2) | bits;
      }
-     int num_length = num_string.size();
-     //std::cout<<"num string is"<<num_string<<std::endl;
-     for(int i = num_length - 1;i >= 0; i--)
-     {
-         if(num_string[i] == '1')final += quick_pow_32(2, num_length - i - 1);
-     }
-     return final;
- }
- uint64_t reverse_offset_num(std::string offset_string)
- {
-     //CAATA 0100001100 = 268
-     uint64_t final = 0;
-     int length = offset_string.size();
-     std::string num_string;
-     for(int i = 0; i < length; i++)
-     {
-         if(offset_string[i] == 'A')num_string += "00";
-         else if(offset_string[i] == 'C')num_string += "01";
-         else if(offset_string[i] == 'G')num_string += "10";
-         else if(offset_string[i] == 'T')num_string += "11";
-     }
-     //std::cout<<"num string is"<<num_string<<std::endl;
-     int num_length = num_string.size();
-     int base = 1;
-     for(int i = num_length - 1;i >= 0; i--)
-     {
-         if(num_string[i] == '1')final += base;
-         base *= 2;
-     }
-     return final;
+     return value;
  }
 
 std::vector<Compress_block> bio_string_to_num(
     std::vector<Compress_bio_string_block> bio_string_blocks,
-    std::vector<Compress_block> *origin_blocks,
     uint32_t pre_window_id)     // 上一条R1的window_id
 {
     std::vector<Compress_block> blocks;
@@ -2238,29 +2092,6 @@ void producer_thread(htsFile* input_file, bam_hdr_t* header) {
     }
 }
 
-Compress_block return_error_block(bam1_t* read1, std::string qual_str1, bam1_t* read2, std::string qual_str2,
-        char* seq1, char* seq2)
-{
-    Compress_block block;
-    const char* name1 = bam_get_qname(read1);
-    const char* name2 = bam_get_qname(read2);
-    block.window_id = chr_bg_wb_ID[genome.size()];
-    block.window_id2 = chr_bg_wb_ID[genome.size()];
-
-    memcpy(block.qname, name1, read1->core.l_qname);
-    block.lqname = read1->core.l_qname;
-    block.flags_1 = read1->core.flag;
-    block.quality_score1 = qual_str1;
-    block.real_seq1 = std::string(seq1);
-
-    memcpy(block.qname2, name2, read2->core.l_qname);
-    block.lqname2 = read2->core.l_qname;
-    block.flags_2 = read2->core.flag;
-    block.quality_score2 = qual_str2;
-    block.real_seq2 = std::string(seq2);
-    return block;
-}
-
 void write_error_reads_to_fq(const std::string& qname1, const std::string& seq1, const std::string& qual1,
                              const std::string& qname2, const std::string& seq2, const std::string& qual2,
                              const bam1_t* read1, const bam1_t* read2) {
@@ -2347,7 +2178,7 @@ bool build_read_block_fields(bam1_t* read,
     if (local_offset == 0) window_id = chr_bg_wb_ID[chr_id];
     else window_id = chr_bg_wb_ID[chr_id] + (local_offset - 1) / g_global_read_length;
     local_offset -= (window_id - chr_bg_wb_ID[chr_id]) * g_global_read_length;
-    if (local_offset >= g_global_read_length) {
+    if (local_offset >= static_cast<uint32_t>(g_global_read_length)) {
         window_id++;
         local_offset -= g_global_read_length;
     }
@@ -2879,7 +2710,6 @@ void parallel_sort_and_write(
     int total_groups,
     char* pos_dir,
     char* quality_dir,
-    char* webp_dir,
     const std::string& work_dir,
     int max_threads,
     std::vector<uint64_t>* partition_block_counts = nullptr
@@ -2913,7 +2743,7 @@ void parallel_sort_and_write(
             if (partition_block_counts && i < static_cast<int>(partition_block_counts->size())) {
                 (*partition_block_counts)[i] = blocks.size();
             }
-            sort_and_write_file(prev_window_id, i, pos_dir, quality_dir, webp_dir,
+            sort_and_write_file(prev_window_id, i, pos_dir, quality_dir,
                                 std::move(blocks));
             completed_groups.fetch_add(1, std::memory_order_relaxed);
             }
@@ -3182,7 +3012,7 @@ int BWT_CLASSIFY_MAIN::init_run(int argc, char *argv[]){
     }
 
     g_partition_locks.clear();  // 确保为空
-    for (size_t i = 0; i <=window_file_partition; ++i) {
+    for (int i = 0; i <= window_file_partition; ++i) {
         g_partition_locks.emplace_back(std::make_unique<std::mutex>());
     }
     fprintf(stderr, "Created %d partition files for window_id grouping\n", window_file_partition + 1);
@@ -3298,7 +3128,6 @@ int BWT_CLASSIFY_MAIN::init_run(int argc, char *argv[]){
         window_file_partition + 1,
         share->o->pos_dir,
         share->o->quality_score_dir,
-        share->o->webp_dir,
         work_dir,
         share->o->thread_n,
         &partition_block_counts
@@ -3392,7 +3221,6 @@ int BWT_CLASSIFY_MAIN::init_run(int argc, char *argv[]){
 }
 
 
-std::atomic<uint32_t> g_pre_hap_id(0);
 bool g_restore_bam_enabled = false;
 std::string g_restore_bam_info_dir;
 std::string g_restore_primary_metadata_dir;
@@ -3661,7 +3489,6 @@ std::vector<Compress_block> read_from_bin(const std::string& filename, uint32_t 
 {
     Compress_final_block_with_huffman_table loaded;
     std::vector<Compress_bio_string_block> bio_string_blocks;
-    std::vector<Compress_block> origin_blocks;
     std::vector<Compress_block> next_blocks;
 
     if (load_from_file(filename, loaded)) {
@@ -3684,7 +3511,7 @@ std::vector<Compress_block> read_from_bin(const std::string& filename, uint32_t 
             bio_string_blocks.push_back(bio_string_block);
         }
 
-        next_blocks = bio_string_to_num(bio_string_blocks, &origin_blocks, prev_window_id);
+        next_blocks = bio_string_to_num(bio_string_blocks, prev_window_id);
         std::cout << "文件 " << filename << " 处理完成" << std::endl;
     }
     return next_blocks;
@@ -3731,7 +3558,7 @@ std::vector<std::pair<std::string, std::string>> read_quality_scores(
             qual2.resize(len2);
             in.read(&qual2[0], len2);
         }
-        for(int j=0;j<len1;j++)
+        for(size_t j = 0; j < len1; ++j)
         {
             const unsigned char value = static_cast<unsigned char>(qual1[j]);
             if(value < 33) qual1[j] = '!';

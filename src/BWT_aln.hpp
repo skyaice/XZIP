@@ -481,125 +481,20 @@
          seq[i] = '\0';
      }
 
-         // 从文件读取单个 SAM_OUT 对象
+     // 从文件读取单个 Read_BWT 对象
      friend std::istream& operator>>(std::istream& is, Read_BWT& obj) {
          is.read(reinterpret_cast<char*>(&obj.bwt_k), sizeof(obj.bwt_k));
          // 读取其他成员...
          return is;
      }
 
-     // 写入单个 SAM_OUT 对象到文件
+     // 写入单个 Read_BWT 对象到文件
      friend std::ostream& operator<<(std::ostream& os, const Read_BWT& obj) {
          os.write(reinterpret_cast<const char*>(&obj.bwt_k), sizeof(obj.bwt_k));
 
          // 写入其他成员...
          return os;
      }
- };
-
-
- struct SAM_OUT{
-     uint64_t bwt_k;
-     uint8_t length;
-     kseq_t * read;
-     uint8_t left_length;
-
-
-     //OCC_rst* occ_rst;
-     std::string sam_line;
-      kseq_t *read_p;
-     int sam_flag = 0;
-     int mapped =0;
-     int exc = 0;
-
-
-     SAM_OUT(){
-         //occ_rst = (OCC_rst *)xcalloc(1,sizeof(OCC_rst));
-         bwt_k = 0;
-         length = 0;
-         read = NULL;
-
-         sam_flag = 0;
-         mapped = 0;
-
-     }
-     void destory(){
-         //bam_destroy1(b);
-         //free(occ_rst);
-     }
-
-     void set_compact_seq(uint64_t bwt_k_, uint8_t l, kseq_t * read_){
-         bwt_k = bwt_k_;
-         length = l;
-         read = read_;
-     }
-
-
-     void set_mate(SAM_OUT *s){
-
-         if(s->sam_flag &BAM_FUNMAP){
-             sam_flag |= BAM_FMUNMAP;
-         }
-         if(s->sam_flag &BAM_FREVERSE){
-             sam_flag |= BAM_FMREVERSE;
-         }
-
-
-     }
-
-     void set_read(kseq_t * read){
-         read_p = read;
-     }
-
-     // 从文件读取单个 SAM_OUT 对象
-     friend std::istream& operator>>(std::istream& is, SAM_OUT& obj) {
-         is.read(reinterpret_cast<char*>(&obj.bwt_k), sizeof(obj.bwt_k));
-         // 读取其他成员...
-         return is;
-     }
-
-     // 写入单个 SAM_OUT 对象到文件
-     friend std::ostream& operator<<(std::ostream& os, const SAM_OUT& obj) {
-         os.write(reinterpret_cast<const char*>(&obj.bwt_k), sizeof(obj.bwt_k));
-
-         // 写入其他成员...
-         return os;
-     }
-
-
-
-
-      void write_line(int s, uint flag, std::string  &cigar_p, std::string &md_p, kseq_t * read,
-               std::string &chr_id_p, uint32_t ref_p, int nm , int as,  std::string &mate_chr_id_p, uint32_t mate_ref_p, int rev, int read_length, int exc_);
-
-
-
-     void seq_bin(char  seq, ubyte_t seq_bin){
-
-             switch(seq){
-             case 'A': seq_bin = 0; break;
-             case 'C': seq_bin = 1; break;
-             case 'G': seq_bin = 2; break;
-             case 'T':  seq_bin = 3; break;
-             default :
-                     seq_bin = 4; break;
-
-         }
-     }
-
-     char bin_seq(ubyte_t seq_bin){
-         char seq;
-         switch(seq_bin){
-             case '0': seq = 'A'; break;
-             case '1': seq = 'C'; break;
-             case '2': seq = 'G'; break;
-             case '3': seq = 'T'; break;
-
-             }
-         return seq;
-     }
-
-
  };
 
 
@@ -1129,9 +1024,6 @@
      // std::vector<OCC_rst>  sam_rst_r1; //sam result for read1
      // std::vector<OCC_rst>  sam_rst_r2; //sam result for read2
      std::vector<Compress_block> compress_block_r;
-
-     std::vector<SAM_OUT>  sam_out_r1; //sam result for read1
-     std::vector<SAM_OUT>  sam_out_r2; //sam result for read2
 
      char * fq_buff1 = NULL;
      char * fq_buff2 = NULL;// unmap reads buff
